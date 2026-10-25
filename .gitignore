@@ -1,0 +1,19 @@
+# Build output
+bin/
+obj/
+
+# IDE / OS
+.vs/
+*.user
+*.suo
+Thumbs.db
+.DS_Store
+
+# Logs and local artifacts
+*.log
+
+# Game binaries and decompiled game source must never be committed
+*.dll
+*.pdb
+*.exe
+SeaPowerFighterAI_decomp/

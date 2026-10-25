@@ -1,0 +1,84 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>SeaPowerFighterAI</AssemblyName>
+    <RootNamespace>SeaPowerFighterAI</RootNamespace>
+    <Version>0.1.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    
+    <!-- Silences MSB3277 version mismatch warnings between Unity's bundled DLLs and netstandard2.1 -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    
+    <!-- Base directory for the Sea Power installation -->
+    <GameDir>E:\SteamLibrary\steamapps\common\Sea Power</GameDir>
+    <!-- Managed directory containing game engine and game code assemblies -->
+    <ManagedDir>$(GameDir)\Sea Power_Data\Managed</ManagedDir>
+    <!-- BepInEx core directory containing modding loader assemblies -->
+    <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
+  </PropertyGroup>
+
+  <!-- External libraries: BepInEx loader and Harmony patching engine -->
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExCore)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCore)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Unity engine core assemblies -->
+  <ItemGroup>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ParadoxNotion">
+      <HintPath>$(ManagedDir)\ParadoxNotion.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.Entities">
+      <HintPath>$(ManagedDir)\Unity.Entities.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Primary Sea Power gameplay assembly containing AI, weapons, and aircraft logic -->
+    <Reference Include="Seapower-Scripts">
+      <HintPath>$(ManagedDir)\Seapower-Scripts.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UniRx">
+      <HintPath>$(ManagedDir)\UniRx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Base type of the doctrine view models (ObservableObject) -->
+    <Reference Include="CommunityToolkit.Mvvm">
+      <HintPath>$(ManagedDir)\CommunityToolkit.Mvvm.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Referenced only so overload resolution over IniHandler.readValue/writeValue compiles -->
+    <Reference Include="Noesis.NoesisGUI">
+      <HintPath>$(ManagedDir)\Noesis.NoesisGUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(ManagedDir)\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Post-build hook: automatically copy the compiled mod DLL straight to the BepInEx plugins directory -->
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\BepInEx\plugins\" />
+    <Message Text="Copied $(TargetFileName) to $(GameDir)\BepInEx\plugins\" Importance="high" />
+  </Target>
+
+</Project>
