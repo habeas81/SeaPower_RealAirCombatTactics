@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>SeaPowerFighterAI</AssemblyName>
+    <AssemblyName>RealAirCombatTactics</AssemblyName>
     <RootNamespace>SeaPowerFighterAI</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.9.0</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -18,12 +18,21 @@
     <ManagedDir>$(GameDir)\Sea Power_Data\Managed</ManagedDir>
     <!-- BepInEx core directory containing modding loader assemblies -->
     <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
+    <!-- AnchorChain (Steam Workshop item 3380210757), the chainloader that loads this mod from its mod folder -->
+    <AnchorChainDll>E:\SteamLibrary\steamapps\workshop\content\1286220\3380210757\AnchorChain.dll</AnchorChainDll>
+    <!-- Mod folder the game (and the in-game Steam Workshop uploader) sees, and the distributable copy -->
+    <ModFolderName>RealAirCombatTactics</ModFolderName>
+    <ModDeployDir>$(GameDir)\Sea Power_Data\StreamingAssets\$(ModFolderName)</ModDeployDir>
   </PropertyGroup>
 
   <!-- External libraries: BepInEx loader and Harmony patching engine -->
   <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>$(BepInExCore)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AnchorChain">
+      <HintPath>$(AnchorChainDll)</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx">
@@ -75,10 +84,17 @@
     </Reference>
   </ItemGroup>
 
-  <!-- Post-build hook: automatically copy the compiled mod DLL straight to the BepInEx plugins directory -->
+  <!-- Post-build: assemble the mod folder (DLL + _info.ini + thumbnail from workshop\) into dist\ for upload, and mirror it into
+       the game's StreamingAssets so it can be enabled in the in-game Mods menu. The legacy BepInEx\plugins copy is removed so the
+       mod is never loaded twice. -->
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\BepInEx\plugins\" />
-    <Message Text="Copied $(TargetFileName) to $(GameDir)\BepInEx\plugins\" Importance="high" />
+    <ItemGroup>
+      <ModFile Include="$(TargetPath)" />
+      <ModFile Include="$(MSBuildProjectDirectory)\workshop\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModFile)" DestinationFolder="$(MSBuildProjectDirectory)\dist\$(ModFolderName)" />
+    <Copy SourceFiles="@(ModFile)" DestinationFolder="$(ModDeployDir)" />
+    <Delete Files="$(GameDir)\BepInEx\plugins\SeaPowerFighterAI.dll;$(GameDir)\BepInEx\plugins\$(TargetFileName)" />
+    <Message Text="Mod folder deployed to $(ModDeployDir) and packaged in dist\$(ModFolderName)" Importance="high" />
   </Target>
-
 </Project>

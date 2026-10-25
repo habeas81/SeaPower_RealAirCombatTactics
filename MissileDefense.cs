@@ -33,13 +33,15 @@ namespace SeaPowerFighterAI
         private const float PullStartSec = 1.0f;         // time-to-impact at which max elevator is applied
         private const float LiftAlignedDeg = 20f;        // roll error below which the lift vector counts as on the missile
         private const float KinematicAfterSec = 30f;     // notch held this long and the missile still tracks -> kinematic
+        private const float PitbullPrepNm = 12f;         // Fox 3 inside this range is notched as if already active (seeker goes live ~9 nm)
         private const float NotchGiveUpSec = 25f;        // could not reach the notch within this long -> kinematic
         private const float MinKinematicHoldSec = 6f;    // never flip out of kinematic faster than this
         private const float GraceSec = 1.5f;             // keep the controller this long after the last valid threat
         private const float RollGainDeg = 30f;           // roll error (deg) that gives full roll input
         private const float LoopG = 7f;                  // g assumed for sizing the vertical reversal
         private const float ReversalTurnDeg = 165f;      // heading change that completes the half loop
-        private const float MaxReversalSec = 12f;        // safety timeout of the reversal
+        private const float LevelOutSinPitch = 0.12f;    // |sin(pitch)| below which the loop counts as levelled out (~7 deg)
+        private const float MaxReversalSec = 20f;        // safety timeout of the reversal
         private const float MinSplitSFloorFt = 2500f;    // extra height over terrain required beyond the loop diameter
         private const float KinOffsetDeg = 60f;          // kinematic legs fly this far either side of directly away
         private const float KinLegMinSec = 20f;          // weave legs: long enough for the missile to commit to each turn and bleed energy
@@ -85,6 +87,7 @@ namespace SeaPowerFighterAI
             public double StepStart;
             public Vector3 PullDir0;
             public bool Learned;
+            public bool SawSteep;           // reversal loop has passed through the vertical
 
             public int Leg;
             public double LegStart;
@@ -94,6 +97,9 @@ namespace SeaPowerFighterAI
             public bool LdChaff;
             public bool LdPullChaff;
 
+            public bool HasWant;            // WantAlt/WantPos hold the latest demand of the defence
+            public float WantAlt;
+            public Vector3 WantPos;
             public double NextAimRoll;      // crew skill: next time the aim error is re-rolled
             public float AimErrorDeg;       // crew skill: current heading error applied to the beam aim
         }
@@ -105,6 +111,29 @@ namespace SeaPowerFighterAI
         private static readonly Dictionary<Aircraft, Ctl> Active = new Dictionary<Aircraft, Ctl>();
 
         public static bool IsActive(Aircraft ac) => ac != null && Active.ContainsKey(ac);
+
+        // Called right before the flight model turns the commands into control demands: puts the defence's altitude,
+        // steering point and speed back over anything the game's own state machine wrote since our last tick.
+        public static void Reassert(Aircraft ac)
+        {
+            if (!Active.TryGetValue(ac, out Ctl c) || !c.HasWant)
+            {
+                return;
+            }
+
+            if (c.Phase == Phase.Reversal || c.Phase == Phase.LastDitch)
+            {
+                return;
+            }
+
+            ac.DesiredAltitude.Value = c.WantAlt;
+            if (ac.Motioncontroller != null)
+            {
+                ac.Motioncontroller.CommandPosition = c.WantPos;
+            }
+
+            EnsureSpeed(ac, c);
+        }
 
         // Whether this aircraft's missile evasion is ours rather than the game's (mirrors the vanilla conditions).
         public static bool Eligible(Aircraft ac)
@@ -217,7 +246,7 @@ namespace SeaPowerFighterAI
             for (int i = 0; i < list.Count; i++)
             {
                 Missile m = list[i];
-                if (m == null || m.IsDestroyed || !AimedAt(m, ac) || m._targetLost || m.ConnectionLostForever.Value)
+                if (m == null || m.IsDestroyed || !AimedAt(m, ac) || m._targetLost || LinkDead(m))
                 {
                     continue;
                 }
@@ -231,13 +260,18 @@ namespace SeaPowerFighterAI
             }
 
             if (best == null && Active.TryGetValue(ac, out Ctl c) && c.M != null && !c.M.IsDestroyed
-                && AimedAt(c.M, ac) && !c.M._targetLost && !c.M.ConnectionLostForever.Value)
+                && AimedAt(c.M, ac) && !c.M._targetLost && !LinkDead(c.M))
             {
                 best = c.M;
             }
 
             return best;
         }
+
+        // A missile whose guidance link is gone for good is harmless only if its own seeker has not taken over:
+        // an active (pitbull) missile no longer needs the link, and the game sets ConnectionLostForever on it.
+        private static bool LinkDead(Missile m) =>
+            m.ConnectionLostForever.Value && !(m._seeker != null && m._seeker.isActive());
 
         // The missile is aimed at us. While the notch has forced its mid-course link down (MissileNotchLockPatch) the
         // game's CurrentTarget is empty for some guidance types, so the intended target is used instead.
@@ -327,7 +361,15 @@ namespace SeaPowerFighterAI
         {
             var g = m._seeker != null ? m._seeker._guidanceType : AmmunitionParameters.GuidanceType.None;
             radar = g == AmmunitionParameters.GuidanceType.SemiActiveRadarHoming || g == AmmunitionParameters.GuidanceType.ActiveRadarHoming;
-            pitbull = g == AmmunitionParameters.GuidanceType.ActiveRadarHoming && m._seeker.isActive();
+            Vector3 rel = ac.transform.position - m.transform.position;
+            float range = rel.magnitude;
+            rangeNm = range / NotchModel.NmToUnity;
+
+            // Treat the missile as "pitbull" a little before the seeker actually goes active, so the jet is already in
+            // the MISSILE's notch (not the shooter's) when it starts looking - the two bearings differ once the
+            // missile has been coasting on stale data.
+            pitbull = g == AmmunitionParameters.GuidanceType.ActiveRadarHoming
+                && (m._seeker.isActive() || rangeNm <= PitbullPrepNm);
             kind = g == AmmunitionParameters.GuidanceType.SemiActiveRadarHoming ? "Fox1"
                 : g == AmmunitionParameters.GuidanceType.ActiveRadarHoming ? (pitbull ? "Fox3-active" : "Fox3-midcourse")
                 : g == AmmunitionParameters.GuidanceType.IRHoming ? "Fox2" : g.ToString();
@@ -339,9 +381,6 @@ namespace SeaPowerFighterAI
                 guide = candidate;
             }
 
-            Vector3 rel = ac.transform.position - m.transform.position;
-            float range = rel.magnitude;
-            rangeNm = range / NotchModel.NmToUnity;
             float closing = Vector3.Dot(m._velocityVecInUnity - ac._velocityVecInUnity, rel.normalized);
             tti = closing > 0.05f ? range / closing : float.PositiveInfinity;
         }
@@ -395,6 +434,12 @@ namespace SeaPowerFighterAI
                     RunLastDitch(ac, c, m, mc, tti);
                     break;
             }
+
+            // Remember what the defence wants so it can be re-asserted just before the flight model reads it
+            // (vanilla pursuit states rewrite DesiredAltitude / speed each frame and would otherwise win).
+            c.WantAlt = ac.DesiredAltitude.Value;
+            c.WantPos = mc.CommandPosition;
+            c.HasWant = true;
 
             if (now >= c.NextLog)
             {
@@ -624,6 +669,7 @@ namespace SeaPowerFighterAI
             c.StepStart = now;
             c.PullDir0 = ac.UnityVelocityVector.normalized;
             c.Learned = false;
+            c.SawSteep = false;
             mc.controlOverride = true;
             ModLog.Event($"DEFENSE {ac.getUIDAndName()} {(c.Immelman ? "Immelman" : "Split-S")} (loop {diameterFt:F0}ft, height {heightFt:F0}ft)");
         }
@@ -660,7 +706,15 @@ namespace SeaPowerFighterAI
                     }
 
                     LearnPullSign(ac, c, now);
-                    if (Mathf.Abs(Mathf.DeltaAngle(Heading(ac), c.Heading0)) >= ReversalTurnDeg && Mathf.Abs(fwd.y) < 0.35f)
+                    // Heading flips as the nose passes the vertical, so heading alone ends the loop too early (mid-dive).
+                    // Finish only once the loop has gone through the vertical and the nose is back near the horizon.
+                    if (Mathf.Abs(fwd.y) > 0.6f)
+                    {
+                        c.SawSteep = true;
+                    }
+
+                    if (c.SawSteep && Mathf.Abs(fwd.y) < LevelOutSinPitch
+                        && Mathf.Abs(Mathf.DeltaAngle(Heading(ac), c.Heading0)) >= ReversalTurnDeg)
                     {
                         c.Step = c.Immelman ? RevStep.Upright : RevStep.Done;
                         c.StepStart = now;
@@ -815,6 +869,18 @@ namespace SeaPowerFighterAI
             }
 
             return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(FixedWingFlightPhysics), "CalculatePositionAndAltitudeErrors")]
+    public static class MissileDefenseReassertPatch
+    {
+        private static void Prefix(FixedWingFlightPhysics __instance)
+        {
+            if (__instance._ac is Aircraft ac)
+            {
+                MissileDefense.Reassert(ac);
+            }
         }
     }
 

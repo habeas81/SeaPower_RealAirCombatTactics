@@ -1,28 +1,43 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Reflection;
-using BepInEx;
+using AnchorChain;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
 
 namespace SeaPowerFighterAI
 {
-    // BepInPlugin tells BepInEx that this class is a mod plugin.
-    // Parameters: Unique GUID, Display Name, Version Number
-    [BepInPlugin(PLUGIN_GUID, PLUGIN_NAME, PLUGIN_VERSION)]
-    public class Plugin : BaseUnityPlugin
+    // Entry point used by AnchorChain (Sea Power's community chainloader), which loads this DLL straight from the
+    // enabled mod folder (Mods menu / Steam Workshop). AnchorChain scans every mod folder for a class implementing
+    // IAnchorChainMod and tagged with [ACPlugin], then calls TriggerEntryPoint once at start-up.
+    [ACPlugin(Plugin.PLUGIN_GUID, Plugin.PLUGIN_NAME, Plugin.PLUGIN_VERSION)]
+    public class AnchorChainEntry : IAnchorChainMod
     {
-        public const string PLUGIN_GUID = "com.user.seapower.fighterai";
-        public const string PLUGIN_NAME = "Sea Power Fighter AI Overhaul";
-        public const string PLUGIN_VERSION = "0.1.0";
+        public void TriggerEntryPoint() => Plugin.Init();
+    }
+
+    public static class Plugin
+    {
+        public const string PLUGIN_GUID = "com.habeas81.seapower.realaircombattactics";
+        public const string PLUGIN_NAME = "Real Air Combat Tactics";
+        public const string PLUGIN_VERSION = "0.9.0";
 
         // Internal logger so our patches can print debug info to the BepInEx console/log
         internal static ManualLogSource Log;
 
-        private void Awake()
+        private static bool _initialised;
+
+        public static void Init()
         {
-            Log = Logger;
+            // Guard: never patch twice (e.g. if the DLL ends up loaded from two places).
+            if (_initialised)
+            {
+                return;
+            }
+
+            _initialised = true;
+            Log = BepInEx.Logging.Logger.CreateLogSource(PLUGIN_NAME);
             ModLog.Init();
             ModLog.Info($"{PLUGIN_NAME} v{PLUGIN_VERSION} starting. Detailed log: {ModLog.Path}");
 
@@ -33,13 +48,12 @@ namespace SeaPowerFighterAI
             try
             {
                 ApplyPatches();
-               }
+            }
             catch (Exception ex)
             {
                 ModLog.Error("Patch setup failed", ex);
             }
         }
-
         // Patch each class on its own so one broken patch (e.g. a game update renamed a method)
         // is logged and skipped instead of taking the whole mod down.
         private static void ApplyPatches()

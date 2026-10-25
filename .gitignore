@@ -17,3 +17,5 @@ Thumbs.db
 *.pdb
 *.exe
 SeaPowerFighterAI_decomp/
+
+dist/

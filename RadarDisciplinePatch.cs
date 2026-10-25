@@ -11,6 +11,9 @@ namespace SeaPowerFighterAI
     public static class RadarDisciplinePatch
     {
         private static readonly Dictionary<int, double> LastLog = new Dictionary<int, double>();
+        private static readonly Dictionary<int, double> LastToggle = new Dictionary<int, double>();
+        private const double MinToggleSec = 20.0;      // minimum time between radar on/off changes per aircraft
+        private const float GateReleaseFactor = 1.25f; // radar stays on until the target is this far beyond the gate
 
         private static void Postfix(AI __instance, ObjectBase ____baseObject)
         {
@@ -36,6 +39,24 @@ namespace SeaPowerFighterAI
                 return;
             }
 
+            int id = aircraft.GetInstanceID();
+            double now = GameTime.missionElapsedTime;
+
+            // The silent approach is only valid while a FRESH datalink/AWACS track exists. If the track has gone
+            // stale (e.g. the target is notching the AWACS) the radar is needed to find it again, so hand control
+            // back to vanilla (which turns it on); extrapolated positions do not count as a track.
+            if (!track.HasLiveTrack)
+            {
+                if (!aircraft.IsAirSearchRadarsOn.Value)
+                {
+                    aircraft.EnableAirSearchRadars();
+                    LastToggle[id] = now;
+                    Log(aircraft, $"EMCON: air-search radar ON - no live offboard track on {target.getUIDAndName()}.");
+                }
+
+                return;
+            }
+
             float engageRange = __instance.EngagementRangeForObject(target);
             if (engageRange <= 0f)
             {
@@ -43,11 +64,17 @@ namespace SeaPowerFighterAI
             }
 
             float distance = (target.transform.position - aircraft.transform.position).magnitude;
-            bool withinRange = distance <= engageRange;
 
-            if (!withinRange && aircraft.IsAirSearchRadarsOn.Value)
+            // Hysteresis: radar comes on inside the gate, and only goes back off well outside it, and never more
+            // often than MinToggleSec - otherwise the emitter flickers at the gate boundary.
+            bool withinRange = distance <= engageRange;
+            bool farOutside = distance > engageRange * GateReleaseFactor;
+            bool settled = !LastToggle.TryGetValue(id, out double lastToggle) || now - lastToggle >= MinToggleSec;
+
+            if (farOutside && settled && aircraft.IsAirSearchRadarsOn.Value)
             {
                 aircraft.DisableAirSearchRadars();
+                LastToggle[id] = now;
                 Log(aircraft, $"EMCON: air-search radar OFF while closing on {target.getUIDAndName()} ({Nm(distance):0.0} nm > gate {Nm(engageRange):0.0} nm).");
                 return;
             }
@@ -55,6 +82,7 @@ namespace SeaPowerFighterAI
             if (withinRange && !aircraft.IsAirSearchRadarsOn.Value)
             {
                 aircraft.EnableAirSearchRadars();
+                LastToggle[id] = now;
                 Log(aircraft, $"EMCON: air-search radar ON for engagement vs {target.getUIDAndName()} ({Nm(distance):0.0} nm <= gate {Nm(engageRange):0.0} nm).");
             }
         }

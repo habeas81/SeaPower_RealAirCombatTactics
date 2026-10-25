@@ -81,7 +81,9 @@ namespace SeaPowerFighterAI
                     ModLog.Event($"t={now:0} JETTISON tanks: {ac.getUIDAndName()} ({reason}).");
                 }
 
-                if (haveBombs && now >= st.NextBombTry)
+                // Ordnance is only worth throwing away when actually defending against a missile; a merely
+                // "hot" fighter is not enough (the aircraft may have no defensive reaction at all).
+                if (haveBombs && PostShotCrankPatch.MissileInbound(ac) && now >= st.NextBombTry)
                 {
                     st.BombTries++;
                     st.NextBombTry = now + BombRetrySec;
@@ -142,12 +144,93 @@ namespace SeaPowerFighterAI
                 if (count > 0)
                 {
                     total += count;
-                    ac.InsertEngageTask(file, null, ground, count, -1);
-                    ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{count} ({reason}) try {attempt}.");
+                    // First try the game's own jettison task; if the bombs are still aboard (laser/GPS bombs are
+                    // never "usable" without a target/pod, so the task never executes) release them directly.
+                    if (attempt <= 1)
+                    {
+                        ac.InsertEngageTask(file, null, ground, count, -1);
+                        ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{count} ({reason}) try {attempt} (engage task).");
+                    }
+                    else
+                    {
+                        int dropped = DirectRelease(ac, file, ground);
+                        ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{count} ({reason}) try {attempt} (direct release, {dropped} released).");
+                    }
                 }
             }
 
             return total;
+        }
+
+        // Release a store straight from its launcher containers, bypassing the engage-task machinery.
+        private static int DirectRelease(Aircraft ac, string file, Vector3 ground)
+        {
+            int released = 0;
+            foreach (WeaponSystemLauncher ls in ac._obp._launcherWeapons)
+            {
+                if (ls == null || ls._containers == null)
+                {
+                    continue;
+                }
+
+                foreach (WeaponContainer container in ls._containers)
+                {
+                    while (container != null && container._weapons.Exists(w => w._ap._ammunitionFileName == file))
+                    {
+                        int before = container._weapons.Count;
+                        container.launch(null, ground, Vector3.zero, 0f, file);
+                        if (container._weapons.Count >= before)
+                        {
+                            break;
+                        }
+
+                        released++;
+                    }
+                }
+            }
+
+            // Free-fall / hardpoint stores (the usual case for GBU-12s): release each weapon ourselves, mirroring
+            // WeaponSystemHardpoint.launch, and cancel the stuck engage task that would otherwise keep
+            // "Engaging with ..." on screen forever (a laser bomb with no target is never "usable").
+            foreach (WeaponSystemHardpoint hp in ac._obp._hardpointWeapons)
+            {
+                if (hp == null || hp._weapons == null)
+                {
+                    continue;
+                }
+
+                bool any = false;
+                for (int i = hp._weapons.Count - 1; i >= 0; i--)
+                {
+                    WeaponBase w = hp._weapons[i];
+                    if (w == null || w._ap._ammunitionFileName != file || w.isLaunched())
+                    {
+                        continue;
+                    }
+
+                    any = true;
+                    w._moveOfLaunchPlatform = ac.getVelocityInUnity() * ac.getRootGameObject().transform.forward;
+                    w.Container_Launch(null, ground, Vector3.zero, hp);
+                    hp._weapons.RemoveAt(i);
+                    hp._vwp._weaponSystem.decreaseLoadedAmmoCount(file);
+                    released++;
+                }
+
+                if (any)
+                {
+                    if (hp._weapons.Count == 0)
+                    {
+                        hp._isEmpty = true;
+                    }
+
+                    if (hp._executingEngageTask)
+                    {
+                        hp.ReturnEngageTask();
+                    }
+                }
+            }
+
+            return released;
         }
 
         private static void CollectBombs(Dictionary<string, AmmunitionGroup> groups, HashSet<string> files)
