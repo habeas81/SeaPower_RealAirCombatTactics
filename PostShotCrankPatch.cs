@@ -128,7 +128,20 @@ namespace SeaPowerFighterAI
             return Vector3.Angle(v, toMe) < HotAspectDeg;
         }
 
-        // Hostile air contacts known to our side (not weapons, not destroyed).
+        // Hostile air contacts known to our side (not weapons, not destroyed). The scan walks every plotted
+        // contact, and several per-frame callers use it, so the list is cached per plotting table and rebuilt
+        // at most every ContactCacheSec of mission time. Destroyed contacts are filtered on the way out.
+        private const double ContactCacheSec = 0.5;
+
+        private class ContactCache
+        {
+            public double BuiltAt = -100.0;
+            public readonly List<ObjectBase> List = new List<ObjectBase>();
+        }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<PlottingTable, ContactCache> ContactCaches =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<PlottingTable, ContactCache>();
+
         internal static IEnumerable<ObjectBase> HostileAirContacts(Aircraft ac)
         {
             var table = ac._taskforce?.PlottingTable;
@@ -137,11 +150,28 @@ namespace SeaPowerFighterAI
                 yield break;
             }
 
-            foreach (KeyValuePair<ObjectBase, Vehicle> kv in table.LocalVehicles)
+            ContactCache cache = ContactCaches.GetOrCreateValue(table);
+            double now = GameTime.missionElapsedTime;
+            if (now - cache.BuiltAt >= ContactCacheSec || now < cache.BuiltAt)
             {
-                ObjectBase c = kv.Key;
-                if (c != null && !c.IsDestroyed && c.isAirTarget() && !c.isWeapon()
-                    && kv.Value != null && kv.Value.CurrentRelationship() == RelationsState.Hostile)
+                cache.BuiltAt = now;
+                cache.List.Clear();
+                foreach (KeyValuePair<ObjectBase, Vehicle> kv in table.LocalVehicles)
+                {
+                    ObjectBase c = kv.Key;
+                    if (c != null && !c.IsDestroyed && c.isAirTarget() && !c.isWeapon()
+                        && kv.Value != null && kv.Value.CurrentRelationship() == RelationsState.Hostile)
+                    {
+                        cache.List.Add(c);
+                    }
+                }
+            }
+
+            // Index loop: callers may trigger nothing that mutates the cache mid-iteration (same frame, same thread).
+            for (int i = 0; i < cache.List.Count; i++)
+            {
+                ObjectBase c = cache.List[i];
+                if (c != null && !c.IsDestroyed)
                 {
                     yield return c;
                 }

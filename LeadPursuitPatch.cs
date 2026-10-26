@@ -466,6 +466,10 @@ namespace SeaPowerFighterAI
         internal const float Kt = 0.0076554087f;
         private const double IntervalSeconds = 5.0;
 
+        // The trace hook itself runs every flight-model frame, so only install it when diagnostics are enabled
+        // (the static Arm/Describe helpers below are still used by the lead-pursuit logic either way).
+        private static bool Prepare() => ModLog.Diagnostics;
+
         private class Entry
         {
             public ObjectBase Target;

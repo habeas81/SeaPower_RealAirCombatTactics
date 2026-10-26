@@ -107,6 +107,19 @@ namespace SeaPowerFighterAI
             }
         }
 
+        // GetComponentsInChildren allocates and walks the whole hierarchy, so the sibling list is cached per
+        // parent (carrier/airfield) and refreshed periodically; taxiing aircraft come and go slowly.
+        private const float SiblingRefreshSec = 2f;
+
+        private class SiblingCache
+        {
+            public float RefreshAt = -1f;
+            public ObjectBase[] Items = new ObjectBase[0];
+        }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ObjectBase, SiblingCache> Siblings =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<ObjectBase, SiblingCache>();
+
         private static ObjectBase FindBlocker(MotionController mc, ObjectBase me, bool backTaxi)
         {
             ObjectBase parent = mc.transform.parent != null ? mc.transform.parent.GetComponent<ObjectBase>() : null;
@@ -115,9 +128,16 @@ namespace SeaPowerFighterAI
                 return null;
             }
 
-            foreach (ObjectBase other in parent.GetComponentsInChildren<ObjectBase>())
+            SiblingCache cache = Siblings.GetOrCreateValue(parent);
+            if (Time.unscaledTime >= cache.RefreshAt)
             {
-                if (other == me || !other.IsAirUnit)
+                cache.RefreshAt = Time.unscaledTime + SiblingRefreshSec;
+                cache.Items = parent.GetComponentsInChildren<ObjectBase>();
+            }
+
+            foreach (ObjectBase other in cache.Items)
+            {
+                if (other == null || other == me || !other.IsAirUnit)
                 {
                     continue;
                 }

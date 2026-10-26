@@ -21,7 +21,7 @@ namespace SeaPowerFighterAI
     {
         public const string PLUGIN_GUID = "com.habeas81.seapower.realaircombattactics";
         public const string PLUGIN_NAME = "Real Air Combat Tactics";
-        public const string PLUGIN_VERSION = "0.9.0";
+        public const string PLUGIN_VERSION = "0.9.1";
 
         // Internal logger so our patches can print debug info to the BepInEx console/log
         internal static ManualLogSource Log;

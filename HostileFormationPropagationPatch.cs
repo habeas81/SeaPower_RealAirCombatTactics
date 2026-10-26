@@ -13,12 +13,26 @@ namespace SeaPowerFighterAI
     {
         private static readonly Dictionary<string, double> LastLog = new Dictionary<string, double>();
 
+        // The scan walks every plotted contact, so run it at most once per interval per table.
+        private const double ScanIntervalSec = 1.0;
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<PlottingTable, double[]> NextScan =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<PlottingTable, double[]>();
+
         private static void Postfix(PlottingTable __instance)
         {
             if (__instance?.LocalVehicles == null || __instance.LocalVehicles.Count == 0)
             {
                 return;
             }
+
+            double[] next = NextScan.GetValue(__instance, _ => new double[1]);
+            double clock = GameTime.missionElapsedTime;
+            if (clock < next[0] && next[0] - clock < ScanIntervalSec * 2)
+            {
+                return;
+            }
+
+            next[0] = clock + ScanIntervalSec;
 
             Unity.Entities.World world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated)
@@ -76,6 +90,11 @@ namespace SeaPowerFighterAI
 
         private static void LogPropagation(ObjectBase hostile, ObjectBase mate, PlottingTable table)
         {
+            if (!ModLog.Verbose)
+            {
+                return;
+            }
+
             double now = GameTime.missionElapsedTime;
             string key = table.GetHashCode() + ":" + hostile.GetInstanceID() + ":" + mate.GetInstanceID();
             if (LastLog.TryGetValue(key, out double last) && now - last < 20.0)
@@ -84,7 +103,7 @@ namespace SeaPowerFighterAI
             }
 
             LastLog[key] = now;
-            if (ModLog.Verbose) ModLog.Event($"t={now:0} CLASSIFY: propagated HOSTILE from {hostile.getUIDAndName()} to formation-mate {mate.getUIDAndName()}.");
+            ModLog.Event($"t={now:0} CLASSIFY: propagated HOSTILE from {hostile.getUIDAndName()} to formation-mate {mate.getUIDAndName()}.");
         }
     }
 }

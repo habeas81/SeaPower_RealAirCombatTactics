@@ -9,6 +9,8 @@ namespace SeaPowerFighterAI
     [HarmonyPatch(typeof(ObjectBase), nameof(ObjectBase.AddEngageTask))]
     public static class EngageTaskLogPatch
     {
+        // Diagnostic only: installed only when diagnostics are enabled.
+        private static bool Prepare() => ModLog.Diagnostics;
         private static void Postfix(ObjectBase __instance, EngageTask engageTask)
         {
             try

@@ -13,6 +13,9 @@ namespace SeaPowerFighterAI
     {
         private const double IntervalSeconds = 2.0;
 
+        // Diagnostic only (hooks every missile guidance update): installed only when diagnostics are enabled.
+        private static bool Prepare() => ModLog.Diagnostics;
+
         private class Box
         {
             public double Last = -100.0;

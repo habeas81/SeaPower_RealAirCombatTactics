@@ -14,6 +14,9 @@ namespace SeaPowerFighterAI
     {
         private const double SettleSeconds = 2.0;   // wait this long after the first tick so stores are fully loaded
 
+        // Diagnostic only (hooks every aircraft tick): installed only when diagnostics are enabled.
+        private static bool Prepare() => ModLog.Diagnostics;
+
         private class State
         {
             public double FirstSeen = -1;

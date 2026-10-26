@@ -20,6 +20,9 @@ namespace SeaPowerFighterAI
         private const int MaxCallerFrames = 4;        // frames shown in the "via" chain
         private const double SpeedLogMinGapSec = 5.0; // per-unit throttle for speed-command lines (they are frequent)
 
+        // Walks the stack on every order, so it is only installed when diagnostics are enabled.
+        private static bool Prepare() => ModLog.Diagnostics;
+
         // Last speed-line time per unit uid, to keep the log readable.
         private static readonly Dictionary<ObjectBase, double> LastSpeedLog = new Dictionary<ObjectBase, double>();
 

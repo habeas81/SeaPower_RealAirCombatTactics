@@ -18,14 +18,21 @@ namespace SeaPowerFighterAI
         // Past this many repeats of the same error, further copies are suppressed (a summary is still logged).
         private const int MaxRepeatsPerError = 5;
 
-        // Set true to re-enable chatty diagnostics for features already validated in game (costs frame time).
-        public static bool Verbose = false;
+        // Master switch for the chatty diagnostics (pursuit/missile kinematic traces, command logging with stack
+        // walks, per-hardpoint hold logging, loadout dumps). OFF for normal play: those hooks run every frame or on
+        // every order and cost frame time. Enable via the "Diagnostics" option in
+        // BepInEx\config\<plugin guid>.cfg (created on first run) when preparing a bug report.
+        // Harmony patches that exist only for diagnostics check this in Prepare() and are not installed when off.
+        public static bool Diagnostics;
 
-        // Kinematic trace of pursuit geometry (lead vs direct); small cost, 1 line per engager per 5 s.
-        public static bool PursuitTrace = true;
+        // Per-feature switches derived from Diagnostics (kept as separate names so call sites read clearly).
+        public static bool Verbose => Diagnostics;
+        public static bool PursuitTrace => Diagnostics;
+        public static bool CommandTrace => Diagnostics;
 
-        // Logs orders / engage tasks / speed / waypoint commands with their caller chain ("CMD" lines).
-        public static bool CommandTrace = true;
+        // Hard cap on the log file so a long session cannot fill the disk or slow the flush thread.
+        private const long MaxLogBytes = 20L * 1024 * 1024;
+        private static long _written;
 
         private static readonly StringBuilder Pending = new StringBuilder();
         private static Timer _flushTimer;
@@ -37,7 +44,19 @@ namespace SeaPowerFighterAI
             try
             {
                 _path = System.IO.Path.Combine(Paths.BepInExRootPath, "SeaPowerFighterAI.log");
-                File.WriteAllText(_path, $"=== {Plugin.PLUGIN_NAME} v{Plugin.PLUGIN_VERSION} log started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==={Environment.NewLine}");
+                try
+                {
+                    var cfg = new BepInEx.Configuration.ConfigFile(
+                        System.IO.Path.Combine(Paths.ConfigPath, Plugin.PLUGIN_GUID + ".cfg"), true);
+                    Diagnostics = cfg.Bind("Logging", "Diagnostics", false,
+                        "Enable verbose diagnostic tracing (pursuit/missile traces, command log, missile-hold log). Costs frame time; use only for bug reports.").Value;
+                }
+                catch
+                {
+                    Diagnostics = false;
+                }
+
+                File.WriteAllText(_path, $"=== {Plugin.PLUGIN_NAME} v{Plugin.PLUGIN_VERSION} log started {DateTime.Now:yyyy-MM-dd HH:mm:ss} (diagnostics {(Diagnostics ? "ON" : "off")}) ==={Environment.NewLine}");
                 _flushTimer = new Timer(_ => Flush(), null, 2000, 2000);
             }
             catch
@@ -62,6 +81,18 @@ namespace SeaPowerFighterAI
 
                     text = Pending.ToString();
                     Pending.Length = 0;
+                }
+
+                // Stop writing once the cap is reached (one marker line is written so the cut-off is obvious).
+                if (_written > MaxLogBytes)
+                {
+                    return;
+                }
+
+                _written += text.Length;
+                if (_written > MaxLogBytes)
+                {
+                    text += "[log size cap reached; further lines dropped]" + Environment.NewLine;
                 }
 
                 File.AppendAllText(_path, text);
