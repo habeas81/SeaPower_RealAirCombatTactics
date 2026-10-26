@@ -1,0 +1,84 @@
+[h1]Real Air Combat Tactics (v0.9.1 Beta)[/h1]
+
+Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discipline, wingman tactics, tanker-aware fuel management, and a Doppler-notch radar model with automated missile defence. It applies to AI and player-controlled fixed-wing aircraft on every side, with a few manual tools for the player.
+
+[b]REQUIRES: Anchor Chain[/b] (Workshop item 3380210757). Subscribe to it, then see "Installation" below.
+
+[h2]Patch notes[/h2]
+[b]v0.9.1 - 26 Oct 2026[/b]
+[list]
+[*][b]Fixed:[/b] a plain right-click attack on a formation (no weapon selected first) now commits the engage, and the flight pursues. Before, aircraft stayed on "heading to waypoint".
+[*][b]Fixed:[/b] radar missiles (Sparrow / AMRAAM class) were held with "target not in vertical arc" until about 2.7 nm when flying east or west. The game's pitch helper is only correct on north/south headings. It is replaced, so missiles now fire at their real launch range on any heading.
+[*][b]New:[/b] radar discipline. Aircraft without a Fox-3 weapon keep their radar off until inside kinematic range plus lock time plus 60 s, so they do not give themselves away early.
+[*][b]New:[/b] hostile classification is shared across formation-mates on the same plotting table.
+[*][b]Performance:[/b] chatty diagnostics are now off by default and are not installed at all unless enabled. Hostile-contact scans are cached, formation propagation is throttled, taxi blocker lookups are cached, and the log is capped at 20 MB. Expect no noticeable frame-time cost.
+[*][b]Docs:[/b] air-to-ground loadouts are dropped when the aircraft goes defensive (see Combat jettison below).
+[/list]
+[b]v0.9.0 Beta[/b] - first public release.
+
+[h2]Offence[/h2]
+[list]
+[*][b]Shoot-look-shoot:[/b] a fighter will not fire a second missile at a target that already has a live missile in flight at it. This stops long- and medium-range missiles being wasted just before the first one hits.
+[*][b]Lead-pursuit intercepts:[/b] fighters aim at where the target will be, not where it is. This makes cleaner intercepts of fleeing contacts and loses less energy. It accounts for the weapon's arc, filters the target's velocity, and manages pursuit speed. It also has a hot-pursuit mode.
+[*][b]Speed-aware launch gate:[/b] launch range is adjusted against fast targets, so missiles are not wasted at the edge of the envelope.
+[*][b]Correct vertical-arc check:[/b] radar missiles are released at their true range on any heading (see v0.9.1).
+[*][b]Plain right-click attack orders:[/b] select a formation and right-click a hostile aircraft; the AI picks the longest-range suitable missile and starts the intercept.
+[*][b]Post-launch crank:[/b] after firing, the fighter cranks off the target while keeping its radar on it. Pressure shots are also used.
+[*][b]Radar discipline:[/b] radar-on timing based on kinematic range, lock time and a 60 s margin for aircraft without Fox-3 weapons.
+[*][b]2-ship tactics:[/b] flight members spread out and split targets, so the pair does not stack up behind the leader and fire redundant salvos.
+[*][b]Wingman extend-and-turn-in:[/b] if the flight lead is stuck in a turning fight, the wingman extends away and then turns back in for a missile shot. It aborts if any other threat appears.
+[*][b]Combat jettison:[/b] an aircraft carrying an air-to-ground loadout (free-fall bombs, cluster stores) or external fuel tanks, and threatened by an air-to-air engagement (inbound missile, or a close, fast hostile pointed at it), dumps those stores to fight clean and go defensive, as real crews do. [b]Engaging strike aircraft will therefore make them lose their bombs.[/b] Guided air-to-ground and anti-ship missiles are kept. Applies to AI and player aircraft.
+[/list]
+
+[h2]Fuel and tankers[/h2]
+[list]
+[*]Tanker-aware bingo: a fighter low on fuel heads for the tanker's planned route, including turns, rather than the tanker's current position.
+[*]Taxi deadlock fix: aircraft blocking each other while taxiing on a deck or airfield are separated so they stop jamming.
+[/list]
+
+[h2]Radar and notching[/h2]
+[list]
+[*]A passive Doppler notch model for aircraft radars and missile seekers. Flying at the right angle to the radar's beam hides a target in ground clutter. Chaff widens the notch for a short time.
+[*]The mid-course guidance link is cut while the shooter's radar cannot see a notched target, and the missile coasts on its last track.
+[*][b]Notch assist for the player:[/b] a NOTCH button on the bottom bar, and an entry on the map right-click menu.
+[*][b]Emissions overlay:[/b] the map's emissions layer tags units with what is really radiating (search / fire-control / sonar), using only information your side could know.
+[/list]
+
+[h2]Automated missile defence[/h2]
+[list]
+[*]When an incoming missile is detected, the AI fighter notches, deploys chaff and does a Split-S / Immelman reversal inside the notch. It then holds the notch and weaves as the missile closes. At pitbull it re-notches, and it makes a last-ditch pull at the end.
+[/list]
+
+[h2]Crew skill[/h2]
+[list]
+[*]Crew skill from Green to Ultra scales reaction delay, notch accuracy, last-ditch timing and offensive launch range, so better crews fight better.
+[/list]
+
+[h2]Diagnostics[/h2]
+[list]
+[*]Off by default for performance. To enable it for a bug report, set [i]Diagnostics = true[/i] in the config file in [i]Sea Power\BepInEx\config[/i] (created on first run) and restart.
+[*]The mod writes a log to [i]Sea Power\BepInEx\SeaPowerFighterAI.log[/i] (recreated on each game start, capped at 20 MB). With diagnostics on it records DEFENSE, NOTCH, JETTISON, pursuit and missile-hold events.
+[/list]
+
+[h2]Installation[/h2]
+[olist]
+[*]Subscribe to this mod and to [b]Anchor Chain[/b] on the Workshop. Let Steam finish downloading both.
+[*]Launch Sea Power and open the [b]Mods[/b] menu from the main menu.
+[*]Find [b]Anchor Chain[/b] in the list and make sure it is [b]enabled[/b] (ticked).
+[*]Find [b]Real Air Combat Tactics[/b] and make sure it is [b]enabled[/b] as well. Both must be enabled.
+[*][b]Fully exit the game[/b] (quit to desktop, not just to the main menu) and start it again. The mod only loads at game start.
+[*]To check that it loaded, open [i]Sea Power\BepInEx\SeaPowerFighterAI.log[/i]. It should start with a line saying the mod initialised. If the file does not exist, the mod is not enabled or Anchor Chain is not enabled.
+[/olist]
+After you change the mod list in the Mods menu, always restart the game. If you previously used a local copy, remove it so the Workshop copy is not loaded twice.
+
+[h2]Status[/h2]
+[b]v0.9.1 Beta.[/b] This is tuned through test missions, and AI dogfights can still show rough behaviour. Known issues:
+[list]
+[*]Occasional speed loss in sustained pursuit.
+[*]Some priority conflicts between hot pursuit and other behaviours.
+[*]Semi-active radar (CW) notching is not fully modelled.
+[*]Weapon status may briefly read "target too fast or close" at the edge of a missile's kinematic envelope.
+[/list]
+Please report bugs with your SeaPowerFighterAI.log attached.
+
+Compatible with Sea Power 0.8.7+. MIT licensed. Not affiliated with the developers of Sea Power.
