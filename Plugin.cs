@@ -78,6 +78,7 @@ namespace SeaPowerFighterAI
             }
 
             ModLog.Info($"Patching complete: {ok} ok, {failed} failed.");
+            Perf.Init(harmony, ModLog.PerfMonitor);
         }
 
         private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

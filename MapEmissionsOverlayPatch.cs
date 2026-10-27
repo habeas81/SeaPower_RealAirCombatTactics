@@ -41,6 +41,16 @@ namespace SeaPowerFighterAI
         private static readonly bool ShowTargets = true;
         private static readonly bool ShowHostileEmissions = true;
         private const int MaxTargetsShown = 3;
+        private const float CacheSec = 0.5f;
+
+        private struct CachedTag
+        {
+            public string Text;
+            public float Expires;
+        }
+
+        private static readonly Dictionary<ObjectBase, CachedTag> _cache = new Dictionary<ObjectBase, CachedTag>();
+        private static float _pruneAt;
 
         private struct Emitters
         {
@@ -72,7 +82,25 @@ namespace SeaPowerFighterAI
                     return;
                 }
 
-                string tag = friendly ? BuildFriendlyTag(obj) : BuildContactTag(__instance.Unit, obj);
+                // The setter fires every frame for every visible unit; the tag only needs refreshing a couple of times a second.
+                float now = UnityEngine.Time.realtimeSinceStartup;
+                if (now > _pruneAt)
+                {
+                    _pruneAt = now + 30f;
+                    _cache.Clear();
+                }
+
+                string tag;
+                if (_cache.TryGetValue(obj, out CachedTag c) && now < c.Expires)
+                {
+                    tag = c.Text;
+                }
+                else
+                {
+                    tag = friendly ? BuildFriendlyTag(obj) : BuildContactTag(__instance.Unit, obj);
+                    _cache[obj] = new CachedTag { Text = tag, Expires = now + CacheSec };
+                }
+
                 if (tag.Length == 0)
                 {
                     return;

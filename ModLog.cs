@@ -25,6 +25,8 @@ namespace SeaPowerFighterAI
         // Harmony patches that exist only for diagnostics check this in Prepare() and are not installed when off.
         public static bool Diagnostics;
 
+        // Opt-in profiler: times every patch method and logs a PERF block every 30 s (see Perf.cs).
+        public static bool PerfMonitor;
         // Per-feature switches derived from Diagnostics (kept as separate names so call sites read clearly).
         public static bool Verbose => Diagnostics;
         public static bool PursuitTrace => Diagnostics;
@@ -50,6 +52,8 @@ namespace SeaPowerFighterAI
                         System.IO.Path.Combine(Paths.ConfigPath, Plugin.PLUGIN_GUID + ".cfg"), true);
                     Diagnostics = cfg.Bind("Logging", "Diagnostics", false,
                         "Enable verbose diagnostic tracing (pursuit/missile traces, command log, missile-hold log). Costs frame time; use only for bug reports.").Value;
+                    PerfMonitor = cfg.Bind("Logging", "PerfMonitor", false,
+                        "Time every patch method and log a PERF summary every 30 s (frame times, GC, slowest patches). Small overhead; use to find lag.").Value;
                 }
                 catch
                 {
