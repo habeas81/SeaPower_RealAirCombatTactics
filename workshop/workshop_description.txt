@@ -37,7 +37,7 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 [*][b]Radar discipline:[/b] radar-on timing based on kinematic range, lock time and a 60 s margin for aircraft without Fox-3 weapons.
 [*][b]2-ship tactics:[/b] flight members spread out and split targets, so the pair does not stack up behind the leader and fire redundant salvos.
 [*][b]Wingman extend-and-turn-in:[/b] if the flight lead is stuck in a turning fight, the wingman extends away and then turns back in for a missile shot. It aborts if any other threat appears.
-[*][b]Combat jettison:[/b] an aircraft carrying an air-to-ground loadout (free-fall bombs, cluster stores) or external fuel tanks, and threatened by an air-to-air engagement (inbound missile, or a close, fast hostile pointed at it), dumps those stores to fight clean and go defensive, as real crews do. [b]Engaging strike aircraft will therefore make them lose their bombs.[/b] Guided air-to-ground and anti-ship missiles are kept. Applies to AI and player aircraft.
+[*][b]Combat jettison:[/b] an aircraft carrying an air-to-ground loadout (free-fall bombs, cluster stores) or external fuel tanks, and threatened by an air-to-air engagement (inbound missile, or a close, fast hostile pointed at it), dumps those stores to fight clean and go defensive, as real crews do. [b]Engaging strike aircraft will therefore make them lose their bombs.[/b] Guided air-to-ground and anti-ship missiles are kept. Applies to AI and player aircraft. [b]Rules of engagement:[/b] in the config you choose whether bombs may be dumped on Hold, Tight and/or Free (default: Hold and Tight), and how many bombs to drop per release (0 = all, otherwise outermost first, alternating left and right). So when you really need the strike to go in, set Free so the bombs are kept.
 [/list]
 
 [h2]Fuel and tankers[/h2]
@@ -56,7 +56,9 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 
 [h2]Automated missile defence[/h2]
 [list]
-[*]When an incoming missile is detected, the AI fighter notches, deploys chaff and does a Split-S / Immelman reversal inside the notch. It then holds the notch and weaves as the missile closes. At pitbull it re-notches, and it makes a last-ditch pull at the end.
+[*]When an incoming missile is detected, the AI fighter notches, deploys chaff and does a Split-S / Immelman reversal inside the notch. It then holds the notch and weaves as the missile closes. At pitbull it re-notches, and it makes a last-ditch pull at the end. Wingmen defend the same way.
+[*][b]Offence vs defence:[/b] a defending aircraft stops its own attack and clears its targets. If the threat is far off and its own missile needs support for much less time, it finishes supporting that missile first. When it is safe it turns back and re-engages (Hold is respected).
+[*][b]Map status labels:[/b] friendly aircraft show what they are doing (DEF-NOTCH, DEF-REV, DEF-HOLD, DEF-PIT, DEF-KIN, DEF-LDM, NOTCH, EXT, CRANK, PRESS, PUR, ATT) and friendly missiles show GUIDED, COAST, NOTCHED (3 s after a notch), ACTIVE or IR.
 [/list]
 
 [h2]Crew skill[/h2]
@@ -67,6 +69,7 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 [h2]Diagnostics[/h2]
 [list]
 [*]Off by default for performance. To enable it for a bug report, set [i]Diagnostics = true[/i] in the config file in [i]Sea Power\BepInEx\config[/i] (created on first run) and restart.
+[*]Set [i]PerfMonitor = true[/i] to log how much frame time each of the mod's patches costs (also off by default).
 [*]The mod writes a log to [i]Sea Power\BepInEx\SeaPowerFighterAI.log[/i] (recreated on each game start, capped at 20 MB). With diagnostics on it records DEFENSE, NOTCH, JETTISON, pursuit and missile-hold events.
 [/list]
 
