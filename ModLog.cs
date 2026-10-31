@@ -27,6 +27,12 @@ namespace SeaPowerFighterAI
 
         // Opt-in profiler: times every patch method and logs a PERF block every 30 s (see Perf.cs).
         public static bool PerfMonitor;
+
+        // Combat-jettison of bombs, per weapon status (ROE) and salvo size; see JettisonPatch.
+        public static bool JettisonBombsOnHold = true;
+        public static bool JettisonBombsOnTight = true;
+        public static bool JettisonBombsOnFree;
+        public static int BombsPerJettison;
         // Per-feature switches derived from Diagnostics (kept as separate names so call sites read clearly).
         public static bool Verbose => Diagnostics;
         public static bool PursuitTrace => Diagnostics;
@@ -54,6 +60,14 @@ namespace SeaPowerFighterAI
                         "Enable verbose diagnostic tracing (pursuit/missile traces, command log, missile-hold log). Costs frame time; use only for bug reports.").Value;
                     PerfMonitor = cfg.Bind("Logging", "PerfMonitor", false,
                         "Time every patch method and log a PERF summary every 30 s (frame times, GC, slowest patches). Small overhead; use to find lag.").Value;
+                    JettisonBombsOnHold = cfg.Bind("Jettison", "BombsOnHold", true,
+                        "Combat-jettison free-fall bombs when an aircraft with weapon status HOLD has a missile inbound.").Value;
+                    JettisonBombsOnTight = cfg.Bind("Jettison", "BombsOnTight", true,
+                        "Combat-jettison free-fall bombs when an aircraft with weapon status TIGHT has a missile inbound.").Value;
+                    JettisonBombsOnFree = cfg.Bind("Jettison", "BombsOnFree", false,
+                        "Combat-jettison free-fall bombs when an aircraft with weapon status FREE has a missile inbound. Leave false to keep a strike committed: set ROE to Free to protect the bombs.").Value;
+                    BombsPerJettison = cfg.Bind("Jettison", "BombsPerJettison", 0,
+                        "Bombs of each type released per jettison salvo (try every few seconds while the missile is inbound). 2 = a symmetric pair, 0 = drop everything at once.").Value;
                 }
                 catch
                 {

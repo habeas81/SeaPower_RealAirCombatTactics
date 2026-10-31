@@ -39,6 +39,7 @@ namespace SeaPowerFighterAI
         // ---- Tunables -------------------------------------------------------------------------------------------
         private static readonly bool Enabled = true;
         private static readonly bool ShowTargets = true;
+        private static readonly bool ShowStatus = true;
         private static readonly bool ShowHostileEmissions = true;
         private const int MaxTargetsShown = 3;
         private const float CacheSec = 0.5f;
@@ -70,6 +71,18 @@ namespace SeaPowerFighterAI
             try
             {
                 ObjectBase obj = __instance.Unit?.BaseObject;
+                if (obj is Missile missile)
+                {
+                    string mtag = ShowStatus && !missile.IsDestroyed && missile._taskforce != null && IsFriendlySide(missile)
+                        ? MissileTag(missile) : string.Empty;
+                    if (mtag.Length > 0)
+                    {
+                        value = (value ?? string.Empty) + mtag;
+                    }
+
+                    return;
+                }
+
                 if (obj == null || obj.IsDestroyed || obj._taskforce == null || !obj.isUnit() || obj._obp == null
                     || ____infoEmissionsLayer == null || !____infoEmissionsLayer.Visible)
                 {
@@ -88,6 +101,22 @@ namespace SeaPowerFighterAI
                 {
                     _pruneAt = now + 30f;
                     _cache.Clear();
+                    List<Missile> gone = null;
+                    foreach (Missile k in NotchedUntil.Keys)
+                    {
+                        if (k == null || k.IsDestroyed)
+                        {
+                            (gone ?? (gone = new List<Missile>())).Add(k);
+                        }
+                    }
+
+                    if (gone != null)
+                    {
+                        foreach (Missile k in gone)
+                        {
+                            NotchedUntil.Remove(k);
+                        }
+                    }
                 }
 
                 string tag;
@@ -97,7 +126,7 @@ namespace SeaPowerFighterAI
                 }
                 else
                 {
-                    tag = friendly ? BuildFriendlyTag(obj) : BuildContactTag(__instance.Unit, obj);
+                    tag = friendly ? BuildFriendlyTag(obj) + StatusTag(obj) : BuildContactTag(__instance.Unit, obj);
                     _cache[obj] = new CachedTag { Text = tag, Expires = now + CacheSec };
                 }
 
@@ -115,6 +144,97 @@ namespace SeaPowerFighterAI
             {
                 ModLog.Error("MapEmissionsOverlayPatch", ex);
             }
+        }
+
+        private const double NotchedLabelSec = 3.0;
+        private static readonly Dictionary<Missile, double> NotchedUntil = new Dictionary<Missile, double>();
+
+        // Friendly missile state: NOTCHED (shown for 3 s when the link is lost to a notch, then COAST), COAST (link lost),
+        // ACTIVE (own seeker on), GUIDED (launcher/datalink guiding), IR (heat seeker). Any state other than COAST
+        // overrides NOTCHED immediately.
+        private static string MissileTag(Missile m)
+        {
+            if (!m.isLaunched() || m._seeker == null)
+            {
+                return string.Empty;
+            }
+
+            double now = GameTime.missionElapsedTime;
+            string s;
+            if (m._seeker.isActive())
+            {
+                s = "ACTIVE";
+            }
+            else if (m._seeker._guidanceType == AmmunitionParameters.GuidanceType.IRHoming)
+            {
+                s = "IR";
+            }
+            else if (m.ConnectionLost.Value || MissileNotchLockPatch.IsForcedLost(m))
+            {
+                s = "COAST";
+                if (!NotchedUntil.ContainsKey(m))
+                {
+                    ObjectBase radar = m._guidingRadarSystem != null ? m._guidingRadarSystem._baseObject : null;
+                    if (MissileNotchLockPatch.IsForcedLost(m) || NotchModel.IsPairDropped(radar, m.CurrentIntendedTargetObject))
+                    {
+                        NotchedUntil[m] = now + NotchedLabelSec;
+                    }
+                }
+
+                if (NotchedUntil.TryGetValue(m, out double until) && now < until)
+                {
+                    s = "NOTCHED";
+                }
+            }
+            else
+            {
+                s = "GUIDED";
+                NotchedUntil.Remove(m);
+            }
+
+            if (s != "COAST" && s != "NOTCHED")
+            {
+                NotchedUntil.Remove(m);
+            }
+
+            return " <" + s + ">";
+        }
+
+        // What a friendly fixed-wing aircraft is doing, as one short label (highest priority first):
+        //   DEF-NOTCH / DEF-REV / DEF-HOLD / DEF-PIT / DEF-KIN / DEF-LDM  automated missile defence, by phase
+        //   NOTCH   player-assist notch      EXT   wingman extend      CRANK / PRESS   after a missile launch
+        //   PUR     hot pursuit of an ordered target      ATT   attack tasks or a target assigned
+        // Hostile contacts get no label (it would reveal what the enemy AI is doing).
+        private static string StatusTag(ObjectBase obj)
+        {
+            if (!ShowStatus || !(obj is Aircraft ac))
+            {
+                return string.Empty;
+            }
+
+            string label = MissileDefense.Label(ac);
+            if (label == null && NotchGuidance.IsActive(ac))
+            {
+                label = "NOTCH";
+            }
+
+            if (label == null && WingmanExtend.IsExtending(ac))
+            {
+                label = "EXT";
+            }
+
+            label = label ?? PostShotCrankPatch.Label(ac);
+            if (label == null && HotPursuit.Records.ContainsKey(ac))
+            {
+                label = "PUR";
+            }
+
+            if (label == null && (ac._currentEngageTasks.Count > 0 || (ac._ai != null && ac._ai._objectToDestroy != null)))
+            {
+                label = "ATT";
+            }
+
+            return label == null ? string.Empty : " <" + label + ">";
         }
 
         // Player and allied taskforces get the full tag; everything else is treated as a detected contact.

@@ -73,7 +73,7 @@ namespace SeaPowerFighterAI
                 CommitEngage(obj, target);
         }
 
-        private static void CommitEngage(ObjectBase shooter, ObjectBase target)
+        internal static void CommitEngage(ObjectBase shooter, ObjectBase target)
         {
             if (shooter._currentEngageTasks.Count > 0 || shooter._ai == null) return;
             string best = null;

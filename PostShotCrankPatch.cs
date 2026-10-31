@@ -53,7 +53,19 @@ namespace SeaPowerFighterAI
             public Mode Mode = Mode.None;
             public ObjectBase ModeTarget;
             public double ModeSince;
+            public double LastSeen;
             public bool Logged;
+        }
+
+        // Map label while the post-launch crank is running (null otherwise).
+        internal static string Label(Aircraft ac)
+        {
+            if (ac == null || !States.TryGetValue(ac, out CrankState s) || GameTime.missionElapsedTime - s.LastSeen > 2.0)
+            {
+                return null;
+            }
+
+            return s.Mode == Mode.Defensive ? "CRANK" : s.Mode == Mode.Press ? "PRESS" : null;
         }
 
         private static readonly ConditionalWeakTable<Aircraft, CrankState> States = new ConditionalWeakTable<Aircraft, CrankState>();
@@ -313,6 +325,7 @@ namespace SeaPowerFighterAI
 
             // Hold the previous mode briefly to avoid flip-flopping (an inbound missile always overrides the hold).
             double now = GameTime.missionElapsedTime;
+            state.LastSeen = now;
             bool holding = state.Mode != Mode.None && now - state.ModeSince < MinModeHoldSeconds && !inbound
                 && state.ModeTarget != null && !state.ModeTarget.IsDestroyed;
             if (holding)

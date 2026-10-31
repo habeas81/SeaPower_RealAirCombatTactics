@@ -39,6 +39,15 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 
 ## Patch notes
 
+**v0.9.2**
+- New: combat jettison is gated by rules of engagement (`[Jettison]` config: bombs may be dumped on Hold and Tight by default, not on Free; `BombsPerJettison` = 0 drops all) and can drop only some bombs per release (`BombsPerJettison`), outermost first, alternating left and right.
+- New: an aircraft defending against a missile stops its own attack and clears its engage tasks. If the threat is far off and its own missile needs support for much less time, it finishes supporting it first. When safe it turns back and re-engages (Hold is respected).
+- New: map status labels for friendly aircraft (`DEF-NOTCH`, `DEF-REV`, `DEF-HOLD`, `DEF-PIT`, `DEF-KIN`, `DEF-LDM`, `NOTCH`, `EXT`, `CRANK`, `PRESS`, `PUR`, `ATT`) and missiles (`GUIDED`, `COAST`, `NOTCHED` for 3 s after a notch, `ACTIVE`, `IR`).
+- Fixed: wingmen never defended. The game's formation state reset the flight model and altitude control every tick.
+- Fixed: Split-S / Immelman restarted repeatedly and exited about 180 degrees off when chaff decoyed the missile mid-loop. A started reversal now completes.
+- Fixed: defenders did not reach the notch (altitude command ignored); Split-S height check relaxed; notch-hold timeout doubled.
+- Performance: map overlay tags cached 0.5 s; optional `PerfMonitor` profiler (off by default).
+
 **v0.9.1**
 - Fixed: plain right-click attack on a formation not starting pursuit.
 - Fixed: radar missiles held until ~2.7 nm on E/W headings (vertical-arc helper).
@@ -88,7 +97,7 @@ and mirrors it into the game's `StreamingAssets`. In VS Code, `Ctrl+Shift+B` run
 
 ## Status
 
-v0.9.1 Beta. Tuning is done through log-driven test missions; constants are at the top of each source file.
+v0.9.2 Beta. Tuning is done through log-driven test missions; constants are at the top of each source file.
 
 ## License
 

@@ -133,6 +133,18 @@ namespace SeaPowerFighterAI
         private static readonly Dictionary<long, Pair> Pairs = new Dictionary<long, Pair>();
         private static double _nextPrune;
 
+        // True when the source has already dropped this target because it is notching (the radar-level notch, as logged by NOTCH:).
+        public static bool IsPairDropped(ObjectBase source, ObjectBase target)
+        {
+            if (source == null || target == null)
+            {
+                return false;
+            }
+
+            long key = ((long)source.GetInstanceID() << 32) ^ (uint)target.GetInstanceID();
+            return Pairs.TryGetValue(key, out Pair p) && p.Dropped;
+        }
+
         // True when 'target' is currently lost to 'source' because it is notching.
         public static bool IsNotched(ObjectBase source, string radarName, RadarClass cls, Vector3 sourcePos, ObjectBase target)
         {

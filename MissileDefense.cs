@@ -77,6 +77,9 @@ namespace SeaPowerFighterAI
 
             public bool Taken;
             public bool PrevPosOverride;
+            public bool PrevAltOverride;
+            public bool PrevDirectPoint;
+            public double NextClearLog;
             public float PrevAltitude;
             public float PrevSpeedKt;
             public float PrevMach;          // > 0 when the command in force before the defence was a Mach command
@@ -102,6 +105,9 @@ namespace SeaPowerFighterAI
             public Vector3 WantPos;
             public double NextAimRoll;      // crew skill: next time the aim error is re-rolled
             public float AimErrorDeg;       // crew skill: current heading error applied to the beam aim
+
+            public List<ObjectBase> OffTargets = new List<ObjectBase>(); // what the aircraft was attacking
+            public ObjectBase OffPrimary;
         }
 
         // Crew skill: aircraft that know about a missile but have not yet "recognised" the threat (aircraft -> when
@@ -111,6 +117,25 @@ namespace SeaPowerFighterAI
         private static readonly Dictionary<Aircraft, Ctl> Active = new Dictionary<Aircraft, Ctl>();
 
         public static bool IsActive(Aircraft ac) => ac != null && Active.ContainsKey(ac);
+
+        // Short map label of the current defence phase (null when not defending); see MapEmissionsOverlayPatch.
+        public static string Label(Aircraft ac)
+        {
+            if (ac == null || !Active.TryGetValue(ac, out Ctl c))
+            {
+                return null;
+            }
+
+            switch (c.Phase)
+            {
+                case Phase.Notch: return "DEF-NOTCH";
+                case Phase.Reversal: return "DEF-REV";
+                case Phase.Hold: return "DEF-HOLD";
+                case Phase.Pitbull: return "DEF-PIT";
+                case Phase.LastDitch: return "DEF-LDM";
+                default: return "DEF-KIN";
+            }
+        }
 
         // Called right before the flight model turns the commands into control demands: puts the defence's altitude,
         // steering point and speed back over anything the game's own state machine wrote since our last tick.
@@ -129,6 +154,10 @@ namespace SeaPowerFighterAI
             ac.DesiredAltitude.Value = c.WantAlt;
             if (ac.Motioncontroller != null)
             {
+                // Pursuit states pin the altitude with this flag, which would ignore the defence's DesiredAltitude (dive below the emitter).
+                ac.Motioncontroller.commandAltitudeOverride = false;
+                // Formation / engage states set this, and the flight model then ignores DesiredAltitude (wingmen never dived below the emitter).
+                ac.Motioncontroller._directPoint = false;
                 ac.Motioncontroller.CommandPosition = c.WantPos;
             }
 
@@ -157,6 +186,31 @@ namespace SeaPowerFighterAI
             return mc is FixedWingFlightPhysics || IsFormation(mc);
         }
 
+        private static readonly Dictionary<Aircraft, double> NextIneligibleLog = new Dictionary<Aircraft, double>();
+
+        // A known missile is aimed at an aircraft but no defence will run: say why (once per 10 s), so "the aircraft
+        // just flew straight" reports can be traced to a game option, an attack mode or a missing flight model.
+        private static void LogIneligible(Aircraft ac, Missile m, double now)
+        {
+            if (NextIneligibleLog.TryGetValue(ac, out double next) && now < next)
+            {
+                return;
+            }
+
+            NextIneligibleLog[ac] = now + 10.0;
+            string why;
+            if (!Enabled) why = "defence disabled";
+            else if (ac.IsDestroyed || !ac.HasControl) why = "no control";
+            else if (ac.isLanding) why = "landing";
+            else if (!Globals.useAdvancedEvasion) why = "game option AdvancedAircraftEvasion is off";
+            else if (ac._inLevelAttackMode || ac._inDiveAttackMode) why = "in a level/dive bombing attack";
+            else if (ac.Ap._isLarge) why = "large aircraft";
+            else if (ac.IsPlayerObject && !Singleton<OptionsManager>.Instance.AircraftMissileEvasion) why = "game option AircraftMissileEvasion is off";
+            else if (ac.IsPlayerObject && ac._playerCommandOverride) why = "player command override";
+            else why = "unsupported flight model " + (ac.Motioncontroller != null ? ac.Motioncontroller.GetType().Name : "none");
+            ModLog.Event($"DEFENSE not started {ac.getUIDAndName()} vs {m.getUIDAndName()}: {why}");
+        }
+
         // FormationFlightPhysics is internal to the game assembly, so match it by name.
         private static bool IsFormation(MotionController mc) => mc != null && mc.GetType().Name == "FormationFlightPhysics";
 
@@ -182,7 +236,17 @@ namespace SeaPowerFighterAI
                 {
                     if (m == null || !Eligible(ac))
                     {
+                        if (m == null)
+                        {
+                            TryResume(ac, now);
+                        }
+
                         ReactAt.Remove(ac);
+                        if (m != null)
+                        {
+                            LogIneligible(ac, m, now);
+                        }
+
                         return;
                     }
 
@@ -203,6 +267,13 @@ namespace SeaPowerFighterAI
                         return;
                     }
 
+                    // Long shot: if our own guided missile needs us for far less time than the threat needs to arrive,
+                    // keep supporting it and defend afterwards.
+                    if (ShouldDeferForOwnMissiles(ac, m, now))
+                    {
+                        return;
+                    }
+
                     ReactAt.Remove(ac);
                     c = Begin(ac, m);
                     if (c == null)
@@ -213,6 +284,19 @@ namespace SeaPowerFighterAI
 
                 if (m == null)
                 {
+                    // A reversal in progress runs to completion even if the missile has just been decoyed/lost:
+                    // dropping the controls mid-loop leaves the jet inverted or 180 deg off and it starts over.
+                    if (c.Phase == Phase.Reversal && now - c.PhaseStart < MaxReversalSec
+                        && ac.Motioncontroller is FixedWingFlightPhysics rmc)
+                    {
+                        AbortOffence(ac, c);
+                        rmc.commandPositionOverride = true;
+                        RunReversal(ac, c, rmc, now);
+                        c.WantAlt = ac.DesiredAltitude.Value;
+                        c.WantPos = rmc.CommandPosition;
+                        return;
+                    }
+
                     if (now - c.LastThreat > GraceSec)
                     {
                         End(ac, c, "threat resolved: " + WhyNotThreat(ac, c.M));
@@ -310,6 +394,8 @@ namespace SeaPowerFighterAI
             {
                 Taken = true,
                 PrevPosOverride = mc.commandPositionOverride,
+                PrevAltOverride = mc.commandAltitudeOverride,
+                PrevDirectPoint = mc._directPoint,
                 PrevAltitude = ac.DesiredAltitude.Value,
                 PrevSpeedKt = ac.SpeedCommand.Value != null ? ac.SpeedCommand.Value.SpeedInKnots : 0f,
                 PrevMach = ac.SpeedCommand.Value is ConstantMach ? ac.SpeedCommand.Value.SpeedInMach : 0f,
@@ -318,6 +404,14 @@ namespace SeaPowerFighterAI
                 PhaseStart = GameTime.missionElapsedTime
             };
             Active[ac] = c;
+            if (Pending.TryGetValue(ac, out PendingEngage prior))
+            {
+                // A second threat before we could re-engage: keep what we were attacking.
+                Pending.Remove(ac);
+                c.OffTargets.AddRange(prior.Targets);
+                c.OffPrimary = prior.Primary;
+            }
+
             Describe(ac, m, out string kind, out _, out _, out _, out float rangeNm, out float tti);
             ModLog.Event($"DEFENSE start {ac.getUIDAndName()} vs {m.getUIDAndName()} kind={kind} range={rangeNm:F1}nm tti={tti:F0}s launcher={(m._launchPlatform != null ? m._launchPlatform.getUIDAndName() : "none")} guidingRadarOwner={(m._guidingRadarSystem != null && m._guidingRadarSystem._baseObject != null ? m._guidingRadarSystem._baseObject.getUIDAndName() : "none")}");
             return c;
@@ -334,6 +428,8 @@ namespace SeaPowerFighterAI
             if (ac.Motioncontroller is FixedWingFlightPhysics mc)
             {
                 mc.commandPositionOverride = c.PrevPosOverride;
+                mc.commandAltitudeOverride = c.PrevAltOverride;
+                mc._directPoint = c.PrevDirectPoint;
                 mc.controlOverride = false;
                 mc.controlInput = Vector3.zero;
             }
@@ -354,6 +450,241 @@ namespace SeaPowerFighterAI
             }
 
             ModLog.Event($"DEFENSE end {ac.getUIDAndName()}: {why}");
+
+            // Safe again: remember what the aircraft was attacking so it can turn back in (see TryResume).
+            if (c.OffTargets.Count > 0 && !ac.IsDestroyed && why != "error")
+            {
+                double now = GameTime.missionElapsedTime;
+                Pending[ac] = new PendingEngage
+                {
+                    Targets = c.OffTargets,
+                    Primary = c.OffPrimary,
+                    At = now + ReengageDelaySec,
+                    Expires = now + ReengageWindowSec
+                };
+            }
+        }
+
+        // ---- Offence management during a defence -----------------------------------------------------------------
+
+        private const float DeferMarginSec = 25f;      // a defence needs about this long before impact to be worth starting
+        private const float ReengageDelaySec = 6f;     // calm period after the defence ends before turning back in
+        private const double ReengageWindowSec = 180.0; // give up re-engaging after this long
+        private const float SeekerLiveNm = 9f;         // an active (Fox 3) seeker needs no more support inside this range
+
+        private class PendingEngage
+        {
+            public List<ObjectBase> Targets;
+            public ObjectBase Primary;
+            public double At;
+            public double Expires;
+        }
+
+        private static readonly Dictionary<Aircraft, PendingEngage> Pending = new Dictionary<Aircraft, PendingEngage>();
+        private static readonly Dictionary<Aircraft, double> NextDeferLog = new Dictionary<Aircraft, double>();
+
+        // Seconds our own guided missiles still need our radar: semi-active until impact, active ones until their
+        // seeker goes live. float.MaxValue when it cannot be estimated (then we simply defend).
+        private static float OwnSupportSec(Aircraft ac)
+        {
+            float need = 0f;
+            foreach (AlignUnitToTarget task in ac._alignmentTasks)
+            {
+                if (!task._isGuidingWeapon || task._alignmentEndRequested || !(task._guidedWeapon is Missile om) || om.IsDestroyed)
+                {
+                    continue;
+                }
+
+                var g = om._seeker != null ? om._seeker._guidanceType : AmmunitionParameters.GuidanceType.None;
+                if (g == AmmunitionParameters.GuidanceType.ActiveRadarHoming && om._seeker.isActive())
+                {
+                    continue;
+                }
+
+                ObjectBase t = task._targetObject;
+                if (t == null || t.IsDestroyed)
+                {
+                    continue;
+                }
+
+                Vector3 rel = t.transform.position - om.transform.position;
+                float range = rel.magnitude;
+                float closing = Vector3.Dot(om._velocityVecInUnity - t._velocityVecInUnity, rel.normalized);
+                if (closing < 0.05f)
+                {
+                    return float.MaxValue;
+                }
+
+                if (g == AmmunitionParameters.GuidanceType.ActiveRadarHoming)
+                {
+                    range = Mathf.Max(0f, range - SeekerLiveNm * NotchModel.NmToUnity);
+                }
+
+                need = Mathf.Max(need, range / closing);
+            }
+
+            return need;
+        }
+
+        // Diagnostic: for each of our missiles still being guided, whether its target is inside the guiding radar's field of view.
+        private static string SupportInfo(Aircraft ac)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (AlignUnitToTarget task in ac._alignmentTasks)
+            {
+                if (!task._isGuidingWeapon || task._alignmentEndRequested || !(task._guidedWeapon is Missile om) || om.IsDestroyed
+                    || om._guidingRadarSystem == null || task._targetObject == null || task._targetObject.IsDestroyed)
+                {
+                    continue;
+                }
+
+                SensorSystemRadar r = om._guidingRadarSystem;
+                Vector3 to = task._targetObject.transform.position - ac.transform.position;
+                float off = Vector3.Angle(ac.transform.forward, to);
+                bool inFov = r.IsObjectInFOV(ac.transform.position, ac.transform.forward, task._targetObject.transform.position);
+                sb.Append($" support[{om.getUIDAndName()}->{task._targetObject.getUIDAndName()} off-nose={off:F0}deg arc=({r._horizontalViewArc.x:F0},{r._horizontalViewArc.y:F0}) inFOV={inFov} lost={om.ConnectionLost.Value}]");
+            }
+
+            return sb.ToString();
+        }
+
+        private static bool ShouldDeferForOwnMissiles(Aircraft ac, Missile m, double now)
+        {
+            float support = OwnSupportSec(ac);
+            if (support <= 0f)
+            {
+                return false;
+            }
+
+            Describe(ac, m, out string kind, out _, out _, out _, out float rangeNm, out float tti);
+            if (tti <= support + DeferMarginSec)
+            {
+                return false;
+            }
+
+            if (!NextDeferLog.TryGetValue(ac, out double next) || now >= next)
+            {
+                NextDeferLog[ac] = now + 10.0;
+                ModLog.Event($"DEFENSE deferred {ac.getUIDAndName()}: {kind} threat tti={tti:F0}s, own missile needs support {support:F0}s");
+            }
+
+            return true;
+        }
+
+        // Stops the aircraft's own attack while it defends: its targets are remembered, its engage tasks are
+        // cleared (missiles already guiding keep their alignment tasks) and it cannot fire new ones. Called every
+        // tick because the game's auto-engage scan keeps adding targets back.
+        private static void AbortOffence(Aircraft ac, Ctl c)
+        {
+            AI ai = ac._ai;
+            if (ai != null)
+            {
+                if (ai._objectToDestroy != null)
+                {
+                    Remember(c, ai._objectToDestroy);
+                    c.OffPrimary = c.OffPrimary ?? ai._objectToDestroy;
+                    ai._objectToDestroy = null;
+                }
+
+                if (ai._objectsToDestroyList.Count > 0)
+                {
+                    foreach (ObjectBase t in ai._objectsToDestroyList)
+                    {
+                        Remember(c, t);
+                    }
+
+                    ai._objectsToDestroyList.Clear();
+                }
+            }
+
+            bool attacking = false;
+            foreach (EngageTask task in ac._currentEngageTasks)
+            {
+                if (task != null && task._targetObject != null)
+                {
+                    Remember(c, task._targetObject);
+                    attacking = true;
+                }
+            }
+
+            if (attacking)
+            {
+                ac.ClearEngageTasksKeepGuiding();
+                // Each line means the game queued (or kept) an attack while we were defending; frequent lines = the scan re-adds them.
+                if (GameTime.missionElapsedTime >= c.NextClearLog)
+                {
+                    c.NextClearLog = GameTime.missionElapsedTime + 10;
+                    ModLog.Event($"DEFENSE cleared engage tasks {ac.getUIDAndName()} (targets remembered: {c.OffTargets.Count}; throttled)");
+                }
+            }
+        }
+
+        private static void Remember(Ctl c, ObjectBase t)
+        {
+            if (t != null && !t.IsDestroyed && !t.isWeapon() && !c.OffTargets.Contains(t))
+            {
+                c.OffTargets.Add(t);
+            }
+        }
+
+        // After a defence: once the missile threat is gone for a few seconds, resume the interrupted attack on the
+        // targets that are still alive and hostile (explicit player orders even under weapons hold).
+        private static void TryResume(Aircraft ac, double now)
+        {
+            if (!Pending.TryGetValue(ac, out PendingEngage p))
+            {
+                return;
+            }
+
+            if (now > p.Expires)
+            {
+                Pending.Remove(ac);
+                return;
+            }
+
+            if (now < p.At || PostShotCrankPatch.MissileInbound(ac))
+            {
+                return;
+            }
+
+            Pending.Remove(ac);
+            int resumed = 0;
+            foreach (ObjectBase t in p.Targets)
+            {
+                if (t == null || t.IsDestroyed || ac._taskforce == null || t._taskforce == null
+                    || ac._taskforce.RelationshipTo(t._taskforce) != RelationsState.Hostile)
+                {
+                    continue;
+                }
+
+                bool ordered = ExplicitOrder.IsPlayerOrdered(ac, t);
+                if (ac._weaponStatus == ObjectBase.WeaponStatus.Hold && !ordered)
+                {
+                    continue;
+                }
+
+                if (ac._ai._objectToDestroy == null)
+                {
+                    ac._ai._objectToDestroy = t == p.Primary || p.Primary == null || p.Primary.IsDestroyed ? t : p.Primary;
+                }
+
+                if (!ac._ai._objectsToDestroyList.Contains(t))
+                {
+                    ac._ai._objectsToDestroyList.Add(t);
+                }
+
+                if (t.isAirTarget())
+                {
+                    ExplicitOrderRecordPatch.CommitEngage(ac, t);
+                }
+
+                resumed++;
+            }
+
+            if (resumed > 0)
+            {
+                ModLog.Event($"DEFENSE re-engage {ac.getUIDAndName()}: resuming attack on {resumed} target(s).");
+            }
         }
 
         // Missile classification and geometry. 'guide' is the aircraft guiding a radar missile (null if none/unnotchable).
@@ -394,6 +725,8 @@ namespace SeaPowerFighterAI
                 return;
             }
 
+            AbortOffence(ac, c);
+
             Describe(ac, m, out string kind, out bool radar, out bool pitbull, out ObjectBase guide, out float rangeNm, out float tti);
             // Lock is broken when the guiding platform has lost its track (SARH or mid-course datalink); once active (pitbull) the missile no longer needs us.
             bool lockBroken = m._seeker != null && !pitbull && m.ConnectionLost.Value;
@@ -415,6 +748,8 @@ namespace SeaPowerFighterAI
 
             // Common: stay on the flight model's override and in full afterburner.
             mc.commandPositionOverride = true;
+            mc.commandAltitudeOverride = false;
+            mc._directPoint = false;
             EnsureSpeed(ac, c);
 
             switch (c.Phase)
@@ -452,7 +787,7 @@ namespace SeaPowerFighterAI
                     notchInfo = hw > 0f ? $" emitter={c.Emitter.getUIDAndName()} radial={Mathf.Abs(Vector3.Dot(ac.UnityVelocityVector, (c.Emitter.transform.position - ac.transform.position).normalized)) * NotchModel.KtPerUnitSpeed:F0}/{hw:F0}kt inNotch={inN}" : " emitter=off";
                 }
 
-                ModLog.Info($"DEFENSE {ac.getUIDAndName()} phase={c.Phase} {kind} range={rangeNm:F1}nm tti={tti:F1}s lockBroken={lockBroken}{notchInfo} alt={ac.transform.position.y * NotchModel.UnityToFt:F0}ft");
+                ModLog.Info($"DEFENSE {ac.getUIDAndName()} phase={c.Phase} {kind} range={rangeNm:F1}nm tti={tti:F1}s lockBroken={lockBroken}{notchInfo}{SupportInfo(ac)} alt={ac.transform.position.y * NotchModel.UnityToFt:F0}ft");
             }
         }
 
@@ -501,9 +836,10 @@ namespace SeaPowerFighterAI
                 // The notch has to be re-established after the reversal (the jet is still diving/turning), so the
                 // "did not break lock" clock only starts once we are confirmed inside it again.
                 bool settled = c.NotchedSince >= 0 && now - c.NotchedSince > KinematicAfterSec;
-                bool never = now - c.PhaseStart > NotchGiveUpSec;
+                bool never = now - c.PhaseStart > NotchGiveUpSec * 2f;
                 if ((settled || never) && !lockBroken && tti > LastDitchStartSec + 1f)
                 {
+                    ModLog.Event($"DEFENSE hold ended ({(settled ? "notch held, lock not broken" : "notch not re-established")}) tti={tti:F1}s");
                     c.KinFallback = true;
                     return Phase.Kinematic;
                 }
@@ -648,7 +984,7 @@ namespace SeaPowerFighterAI
             float heightFt = ac.HeightOverTerrain.Value * NotchModel.UnityToFt;
             float emitterAboveFt = (c.Emitter.transform.position.y - ac.transform.position.y) * NotchModel.UnityToFt;
 
-            bool canSplitS = heightFt > diameterFt * 1.3f + MinSplitSFloorFt;
+            bool canSplitS = heightFt > diameterFt * 1.1f + MinSplitSFloorFt;
             bool canImmelman = emitterAboveFt > diameterFt + NotchModel.LookDownMarginFt + 300f;
             if (!canSplitS && !canImmelman)
             {
@@ -890,6 +1226,18 @@ namespace SeaPowerFighterAI
         private static void Postfix(Aircraft __instance)
         {
             MissileDefense.Tick(__instance);
+        }
+    }
+
+    // The game's MovingInFormation state switches an on-station wingman back to formation physics every tick, which
+    // undid the switch to free flight the defence (and the wingman extend) needs and ended the defence at once
+    // ("flight model changed"), so formation wingmen never evaded. Refuse the switch while one of them is active.
+    [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.SetFormationPhysicsModel))]
+    public static class KeepFreeFlightPatch
+    {
+        private static bool Prefix(Aircraft __instance)
+        {
+            return !(MissileDefense.IsActive(__instance) || WingmanExtend.IsExtending(__instance));
         }
     }
 }

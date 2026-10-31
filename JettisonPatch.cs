@@ -34,6 +34,7 @@ namespace SeaPowerFighterAI
 
         // Guided bombs need a ground point to "attack"; retry a few times (spaced) until the stores are gone.
         private const int MaxBombTries = 4;
+        private const int MaxPartialSalvos = 10; // salvo count cap when BombsPerJettison is set
         private const double BombRetrySec = 6.0;
 
         private static readonly ConditionalWeakTable<Aircraft, State> States = new ConditionalWeakTable<Aircraft, State>();
@@ -63,7 +64,7 @@ namespace SeaPowerFighterAI
                 st.NextCheck = now + CheckIntervalSec;
 
                 bool haveTanks = DropTanks && !ac._fuelTanksDropped && ac._obp._fueltankAmmunitionGroups.Count > 0;
-                bool haveBombs = DropBombs && !st.BombsDropped;
+                bool haveBombs = DropBombs && !st.BombsDropped && BombRoeAllows(ac);
                 if (!haveTanks && !haveBombs)
                 {
                     return;
@@ -88,7 +89,7 @@ namespace SeaPowerFighterAI
                     st.BombTries++;
                     st.NextBombTry = now + BombRetrySec;
                     int left = DropBombStores(ac, reason, now, st.BombTries);
-                    if (left == 0 || st.BombTries >= MaxBombTries)
+                    if (left == 0 || st.BombTries >= (ModLog.BombsPerJettison > 0 ? MaxPartialSalvos : MaxBombTries))
                     {
                         st.BombsDropped = true;
                     }
@@ -97,6 +98,18 @@ namespace SeaPowerFighterAI
             catch (Exception ex)
             {
                 ModLog.Error("JettisonPatch.Postfix", ex);
+            }
+        }
+
+        // Bombs are only shed when the aircraft's weapon status (ROE) is enabled for it in the config, so a strike
+        // that must go in can be protected by setting the group to the status that is switched off (default: Free).
+        private static bool BombRoeAllows(Aircraft ac)
+        {
+            switch (ac._weaponStatus)
+            {
+                case ObjectBase.WeaponStatus.Free: return ModLog.JettisonBombsOnFree;
+                case ObjectBase.WeaponStatus.Tight: return ModLog.JettisonBombsOnTight;
+                default: return ModLog.JettisonBombsOnHold;
             }
         }
 
@@ -144,17 +157,19 @@ namespace SeaPowerFighterAI
                 if (count > 0)
                 {
                     total += count;
+                    // Partial salvo: release only a few (an even number keeps the load symmetric).
+                    int want = ModLog.BombsPerJettison > 0 ? Math.Min(count, ModLog.BombsPerJettison) : count;
                     // First try the game's own jettison task; if the bombs are still aboard (laser/GPS bombs are
                     // never "usable" without a target/pod, so the task never executes) release them directly.
                     if (attempt <= 1)
                     {
-                        ac.InsertEngageTask(file, null, ground, count, -1);
-                        ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{count} ({reason}) try {attempt} (engage task).");
+                        ac.InsertEngageTask(file, null, ground, want, -1);
+                        ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{want}/{count} ({reason}) try {attempt} (engage task).");
                     }
                     else
                     {
-                        int dropped = DirectRelease(ac, file, ground);
-                        ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{count} ({reason}) try {attempt} (direct release, {dropped} released).");
+                        int dropped = DirectRelease(ac, file, ground, want);
+                        ModLog.Event($"t={now:0} JETTISON bombs: {ac.getUIDAndName()} {file} x{want}/{count} ({reason}) try {attempt} (direct release, {dropped} released).");
                     }
                 }
             }
@@ -163,7 +178,7 @@ namespace SeaPowerFighterAI
         }
 
         // Release a store straight from its launcher containers, bypassing the engage-task machinery.
-        private static int DirectRelease(Aircraft ac, string file, Vector3 ground)
+        private static int DirectRelease(Aircraft ac, string file, Vector3 ground, int limit)
         {
             int released = 0;
             foreach (WeaponSystemLauncher ls in ac._obp._launcherWeapons)
@@ -175,7 +190,7 @@ namespace SeaPowerFighterAI
 
                 foreach (WeaponContainer container in ls._containers)
                 {
-                    while (container != null && container._weapons.Exists(w => w._ap._ammunitionFileName == file))
+                    while (released < limit && container != null && container._weapons.Exists(w => w._ap._ammunitionFileName == file))
                     {
                         int before = container._weapons.Count;
                         container.launch(null, ground, Vector3.zero, 0f, file);
@@ -192,6 +207,8 @@ namespace SeaPowerFighterAI
             // Free-fall / hardpoint stores (the usual case for GBU-12s): release each weapon ourselves, mirroring
             // WeaponSystemHardpoint.launch, and cancel the stuck engage task that would otherwise keep
             // "Engaging with ..." on screen forever (a laser bomb with no target is never "usable").
+            // Stores are released outermost-first, alternating left and right, so a partial salvo stays symmetric.
+            var candidates = new List<KeyValuePair<float, KeyValuePair<WeaponSystemHardpoint, WeaponBase>>>();
             foreach (WeaponSystemHardpoint hp in ac._obp._hardpointWeapons)
             {
                 if (hp == null || hp._weapons == null)
@@ -199,34 +216,67 @@ namespace SeaPowerFighterAI
                     continue;
                 }
 
-                bool any = false;
-                for (int i = hp._weapons.Count - 1; i >= 0; i--)
+                foreach (WeaponBase w in hp._weapons)
                 {
-                    WeaponBase w = hp._weapons[i];
-                    if (w == null || w._ap._ammunitionFileName != file || w.isLaunched())
+                    if (w != null && w._ap._ammunitionFileName == file && !w.isLaunched())
                     {
-                        continue;
+                        float x = ac.transform.InverseTransformPoint(w.transform.position).x;
+                        candidates.Add(new KeyValuePair<float, KeyValuePair<WeaponSystemHardpoint, WeaponBase>>(x, new KeyValuePair<WeaponSystemHardpoint, WeaponBase>(hp, w)));
                     }
+                }
+            }
 
-                    any = true;
-                    w._moveOfLaunchPlatform = ac.getVelocityInUnity() * ac.getRootGameObject().transform.forward;
-                    w.Container_Launch(null, ground, Vector3.zero, hp);
-                    hp._weapons.RemoveAt(i);
-                    hp._vwp._weaponSystem.decreaseLoadedAmmoCount(file);
-                    released++;
+            candidates.Sort((a, b) => Math.Abs(b.Key).CompareTo(Math.Abs(a.Key)));
+            var order = new List<KeyValuePair<WeaponSystemHardpoint, WeaponBase>>();
+            var pending = new List<KeyValuePair<float, KeyValuePair<WeaponSystemHardpoint, WeaponBase>>>(candidates);
+            bool wantLeft = true;
+            while (pending.Count > 0)
+            {
+                int i = pending.FindIndex(c => (c.Key < 0f) == wantLeft);
+                if (i < 0)
+                {
+                    i = 0; // no store left on that side
                 }
 
-                if (any)
-                {
-                    if (hp._weapons.Count == 0)
-                    {
-                        hp._isEmpty = true;
-                    }
+                order.Add(pending[i].Value);
+                wantLeft = (pending[i].Key < 0f) ? false : true;
+                pending.RemoveAt(i);
+            }
 
-                    if (hp._executingEngageTask)
-                    {
-                        hp.ReturnEngageTask();
-                    }
+            var touched = new HashSet<WeaponSystemHardpoint>();
+            foreach (var pair in order)
+            {
+                if (released >= limit)
+                {
+                    break;
+                }
+
+                WeaponSystemHardpoint hp = pair.Key;
+                WeaponBase w = pair.Value;
+                int idx = hp._weapons.IndexOf(w);
+                if (idx < 0)
+                {
+                    continue;
+                }
+
+                w._moveOfLaunchPlatform = ac.getVelocityInUnity() * ac.getRootGameObject().transform.forward;
+                w.Container_Launch(null, ground, Vector3.zero, hp);
+                hp._weapons.RemoveAt(idx);
+                hp._vwp._weaponSystem.decreaseLoadedAmmoCount(file);
+                released++;
+                touched.Add(hp);
+            }
+
+            foreach (WeaponSystemHardpoint hp in touched)
+            {
+                if (hp._weapons.Count == 0)
+                {
+                    hp._isEmpty = true;
+                }
+
+                if (hp._executingEngageTask)
+                {
+                    hp.ReturnEngageTask();
                 }
             }
 
