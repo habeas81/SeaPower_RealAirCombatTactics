@@ -151,11 +151,30 @@ namespace SeaPowerFighterAI
             }
         }
 
+        // Mission clock, so the log stays aligned with the game when it is paused. Wall clock before a mission is running.
+        private static string Stamp()
+        {
+            try
+            {
+                double t = SeaPower.GameTime.missionElapsedTime;
+                if (t > 0.0)
+                {
+                    TimeSpan ts = TimeSpan.FromSeconds(t);
+                    return $"T+{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}.{ts.Milliseconds:000}";
+                }
+            }
+            catch
+            {
+            }
+
+            return DateTime.Now.ToString("HH:mm:ss.fff");
+        }
+
         private static void Write(string level, string message, Exception ex, int mirrorLevel)
         {
             try
             {
-                string line = $"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {message}";
+                string line = $"[{Stamp()}] [{level}] {message}";
                 if (_path != null)
                 {
                     lock (Gate)

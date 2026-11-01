@@ -45,6 +45,11 @@ namespace SeaPowerFighterAI
             if (!(shooter is Aircraft) || target == null || target.IsDestroyed) return false;
             return Ordered.TryGetValue(shooter.GetInstanceID(), out var set) && set.Contains(target);
         }
+
+        public static void Clear(ObjectBase shooter)
+        {
+            if (shooter != null) Ordered.Remove(shooter.GetInstanceID());
+        }
     }
 
     [HarmonyPatch]

@@ -687,6 +687,17 @@ namespace SeaPowerFighterAI
             }
         }
 
+        // Cease fire / hold: forget the attack so nothing re-engages once the defence is over.
+        public static void OnCeaseFire(Aircraft ac)
+        {
+            Pending.Remove(ac);
+            if (Active.TryGetValue(ac, out Ctl c))
+            {
+                c.OffTargets.Clear();
+                c.OffPrimary = null;
+            }
+        }
+
         // Missile classification and geometry. 'guide' is the aircraft guiding a radar missile (null if none/unnotchable).
         private static void Describe(Aircraft ac, Missile m, out string kind, out bool radar, out bool pitbull, out ObjectBase guide, out float rangeNm, out float tti)
         {
@@ -1036,9 +1047,11 @@ namespace SeaPowerFighterAI
                 case RevStep.Pull:
                     x = _pullSign;
                     // Keep the loop vertical (wings level / inverted) except near the vertical where bank is undefined.
+                    // Past the vertical the reference flips: a Split-S exits upright, an Immelman exits inverted.
                     if (Mathf.Abs(fwd.y) < 0.7f)
                     {
-                        z = Mathf.Clamp(Mathf.DeltaAngle(bank, inverted ? 180f : 0f) / RollGainDeg, -1f, 1f);
+                        bool wantInverted = c.SawSteep ? !inverted : inverted;
+                        z = Mathf.Clamp(Mathf.DeltaAngle(bank, wantInverted ? 180f : 0f) / RollGainDeg, -1f, 1f);
                     }
 
                     LearnPullSign(ac, c, now);
@@ -1081,7 +1094,8 @@ namespace SeaPowerFighterAI
                 c.Side =  NotchGuidance.ChooseSide(ac, c.Emitter, false);
                 float hw = NotchGuidance.EmitterHalfWidthKt(c.Emitter);
                 bool inN = hw > 0f && NotchGuidance.InNotch(ac, c.Emitter, hw, out _, out _);
-                ModLog.Event($"DEFENSE {ac.getUIDAndName()} reversal complete, afterburner hold, still in notch={inN}");
+                bool timedOut = c.Step != RevStep.Done;
+                ModLog.Event($"DEFENSE {ac.getUIDAndName()} reversal complete{(timedOut ? $" (TIMEOUT step={c.Step} pitch={Mathf.Asin(Mathf.Clamp(fwd.y, -1f, 1f)) * Mathf.Rad2Deg:F0}deg alt={ac.transform.position.y * NotchModel.UnityToFt:F0}ft)" : "")}, afterburner hold, still in notch={inN}");
             }
         }
 

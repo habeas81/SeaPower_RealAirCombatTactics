@@ -39,6 +39,12 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 
 ## Patch notes
 
+**v0.9.3**
+- Fixed: Cease Fire (X) did not stop re-engagement. It now cancels hot pursuit, the player-ordered target, a wingman extend and a pending post-defence re-engage, and the aircraft returns to its own navigation. Weapons Hold also stops hot pursuit. (Under Weapons Tight/Free the game's own auto-engage can still pick up hostile air targets.)
+- Fixed: fighters launching two missiles at one target. Hot-pursuit re-tasks now wait while any friendly missile is still viable, and a second queued missile task on the same target is blocked (player-ordered tasks are exempt).
+- Fixed: Split-S restarting two or three times while levelling out. The roll reference now flips after the vertical, so the aircraft exits upright instead of re-inverting.
+- Diagnostics: log timestamps use the mission clock (`T+HH:MM:SS`), so pausing no longer skews them.
+
 **v0.9.2**
 - New: combat jettison is gated by rules of engagement (`[Jettison]` config: bombs may be dumped on Hold and Tight by default, not on Free; `BombsPerJettison` = 0 drops all) and can drop only some bombs per release (`BombsPerJettison`), outermost first, alternating left and right.
 - New: an aircraft defending against a missile stops its own attack and clears its engage tasks. If the threat is far off and its own missile needs support for much less time, it finishes supporting it first. When safe it turns back and re-engages (Hold is respected).
@@ -97,7 +103,7 @@ and mirrors it into the game's `StreamingAssets`. In VS Code, `Ctrl+Shift+B` run
 
 ## Status
 
-v0.9.2 Beta. Tuning is done through log-driven test missions; constants are at the top of each source file.
+v0.9.3 Beta. Tuning is done through log-driven test missions; constants are at the top of each source file.
 
 ## License
 

@@ -1,10 +1,17 @@
-[h1]Real Air Combat Tactics (v0.9.2 Beta)[/h1]
+[h1]Real Air Combat Tactics (v0.9.3 Beta)[/h1]
 
 Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discipline, wingman tactics, tanker-aware fuel management, and a Doppler-notch radar model with automated missile defence. It applies to AI and player-controlled fixed-wing aircraft on every side, with a few manual tools for the player.
 
 [b]REQUIRES: Anchor Chain[/b] (Workshop item 3380210757). Subscribe to it, then see "Installation" below.
 
 [h2]Patch notes[/h2]
+[b]v0.9.3 - 1 Nov 2026[/b]
+[list]
+[*][b]Fixed:[/b] Cease Fire (X) did not stop an aircraft re-engaging. It now cancels the attack, the ordered target, a wingman extend and any pending post-defence re-engage, and the aircraft goes back to its own navigation (for example, rejoining formation). Weapons Hold also stops the pursuit. Under Weapons Tight or Free the game's own auto-engage can still pick up hostile air targets, which is normal.
+[*][b]Fixed:[/b] fighters sometimes launched two missiles at the same target. Re-tasked attacks now wait while any friendly missile is still flying at that target, and a duplicate missile task on the same target is blocked. Orders you give yourself are not affected.
+[*][b]Fixed:[/b] the defensive Split-S could restart two or three times while levelling out, losing a lot of altitude. It now rolls upright after the vertical and exits cleanly.
+[*][b]Diagnostics:[/b] log timestamps now use mission time, so pausing the game no longer skews them.
+[/list]
 [b]v0.9.2 - 31 Oct 2026[/b]
 [list]
 [*][b]New:[/b] bomb jettison now follows your rules of engagement. In the config you can allow it on Hold, Tight and/or Free, and limit how many bombs are dropped per release (outermost first, alternating left and right). By default bombs are dumped on Hold and Tight but not on Free.
@@ -85,7 +92,7 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 After you change the mod list in the Mods menu, always restart the game. If you previously used a local copy, remove it so the Workshop copy is not loaded twice.
 
 [h2]Status[/h2]
-[b]v0.9.2 Beta.[/b] This is tuned through test missions, and AI dogfights can still show rough behaviour. Known issues:
+[b]v0.9.3 Beta.[/b] This is tuned through test missions, and AI dogfights can still show rough behaviour. Known issues:
 [list]
 [*]Occasional speed loss in sustained pursuit.
 [*]Some priority conflicts between hot pursuit and other behaviours.

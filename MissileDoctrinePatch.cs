@@ -284,6 +284,26 @@ namespace SeaPowerFighterAI
             return false;
         }
 
+        // True if any friendly missile (the shooter's own or a squadron-mate's) is still viable against the target.
+        internal static bool HasViableFriendlyMissile(ObjectBase target, ObjectBase shooter)
+        {
+            if (target?._incomingWeapons == null)
+            {
+                return false;
+            }
+
+            double now = GameTime.missionElapsedTime;
+            foreach (WeaponBase weapon in target._incomingWeapons)
+            {
+                if (IsViableFriendlyAam(weapon, target, shooter, now))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool HasOwnMissileInFlight(ObjectBase target, ObjectBase shooter)
         {
             foreach (WeaponBase weapon in target._incomingWeapons)

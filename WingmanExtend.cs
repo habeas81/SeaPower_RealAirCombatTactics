@@ -72,6 +72,15 @@ namespace SeaPowerFighterAI
 
         public static bool IsExtending(Aircraft ac) => ac != null && States.TryGetValue(ac, out State s) && s.Stage == Stage.Extending;
 
+        // Cease fire: end any extension in progress (the turn-in would otherwise start another attack).
+        public static void OnCeaseFire(Aircraft ac)
+        {
+            if (ac != null && States.TryGetValue(ac, out State s))
+            {
+                Abort(ac, s, "cease fire");
+            }
+        }
+
         // Per-frame hook (before the flight model reads its commands): keep the extension's demands over the game's own.
         public static void Reassert(Aircraft ac)
         {

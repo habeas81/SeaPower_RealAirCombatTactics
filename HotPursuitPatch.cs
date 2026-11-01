@@ -85,6 +85,51 @@ namespace SeaPowerFighterAI
         }
     }
 
+    // One missile task per target: a second queued task (auto scan + re-engage/hot pursuit) would fire a second missile.
+    [HarmonyPatch(typeof(ObjectBase), nameof(ObjectBase.AddEngageTask))]
+    public static class DuplicateEngageTaskGuardPatch
+    {
+        private const int PlayerOrderPriority = 60;
+
+        private static bool Prefix(ObjectBase __instance, EngageTask engageTask)
+        {
+            try
+            {
+                Aircraft ac = __instance as Aircraft;
+                if (ac == null || engageTask == null || engageTask._priority >= PlayerOrderPriority || engageTask._targetObject == null
+                    || !engageTask._targetObject.isAirTarget() || engageTask._targetObject.isWeapon())
+                {
+                    return true;
+                }
+
+                Ammunition ammo = ac.getAmmunitionByName(engageTask._ammoId);
+                if (ammo?._ap == null || ammo._ap._type != Ammunition.Type.Missile)
+                {
+                    return true;
+                }
+
+                foreach (EngageTask t in ac._currentEngageTasks)
+                {
+                    if (t != null && t._targetObject == engageTask._targetObject && t._ammoId != null)
+                    {
+                        Ammunition other = ac.getAmmunitionByName(t._ammoId);
+                        if (other?._ap != null && other._ap._type == Ammunition.Type.Missile)
+                        {
+                            ModLog.Event($"t={GameTime.missionElapsedTime:0} DUPLICATE TASK blocked: {ac.getUIDAndName()} already has a missile task on {engageTask._targetObject.getUIDAndName()}.");
+                            return false;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ModLog.Error("DuplicateEngageTaskGuardPatch.Prefix", ex);
+            }
+
+            return true;
+        }
+    }
+
     // Register a manual (non-auto) air-to-air missile attack order.
     [HarmonyPatch(typeof(ObjectBase), nameof(ObjectBase.AddEngageTask))]
     public static class HotPursuitRegisterPatch
@@ -180,6 +225,27 @@ namespace SeaPowerFighterAI
         }
     }
 
+    // Cease fire (X) must really end our own attack logic: hot pursuit, the player-order record, a wingman extend and
+    // a pending post-defence re-engage would otherwise put the attack straight back.
+    [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.CeaseFire))]
+    public static class CeaseFireCancelPatch
+    {
+        private static void Postfix(Aircraft __instance)
+        {
+            try
+            {
+                HotPursuit.Cancel(__instance, "cease fire");
+                ExplicitOrder.Clear(__instance);
+                WingmanExtend.OnCeaseFire(__instance);
+                MissileDefense.OnCeaseFire(__instance);
+            }
+            catch (Exception ex)
+            {
+                ModLog.Error("CeaseFireCancelPatch.Postfix", ex);
+            }
+        }
+    }
+
     // Poll: when the engage task has finished but the target lives, re-issue it.
     [HarmonyPatch(typeof(AI), nameof(AI.OnUpdate))]
     public static class HotPursuitPollPatch
@@ -208,6 +274,13 @@ namespace SeaPowerFighterAI
                     return;
                 }
 
+                // Weapons Hold means no shooting: never keep chasing on a stale attack order.
+                if (ac._weaponStatus == ObjectBase.WeaponStatus.Hold)
+                {
+                    HotPursuit.Cancel(ac, "weapons hold");
+                    return;
+                }
+
                 if (r.Target == null || r.Target.IsDestroyed || r.Target._externalDestructionNotified)
                 {
                     HotPursuit.Cancel(ac, "target destroyed");
@@ -229,6 +302,12 @@ namespace SeaPowerFighterAI
                 }
 
                 if (HotPursuit.HasWorkOn(ac, r.Target) || now - r.LastRetask < HotPursuit.RetaskCooldownSec)
+                {
+                    return;
+                }
+
+                // Shoot-look-shoot: a missile (ours or a squadron-mate's) is still flying at this target, so wait for its outcome.
+                if (MissileDoctrinePatch.HasViableFriendlyMissile(r.Target, ac))
                 {
                     return;
                 }
