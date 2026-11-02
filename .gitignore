@@ -20,5 +20,6 @@ SeaPowerFighterAI_decomp/
 
 dist/
 
-# Downloaded steamcmd tool and its runtime state/login cache (never commit Steam credentials/session data)
-tools/steamcmd/
+# Local scratch tooling (e.g. a stray steamcmd copy); shared steamcmd lives outside the repo
+# under %LOCALAPPDATA%\SeaPowerModTools\steamcmd, see scripts\Publish-Workshop.ps1.
+tools/
