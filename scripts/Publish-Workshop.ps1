@@ -119,7 +119,11 @@ Write-Host "Content folder: $ContentDir" -ForegroundColor DarkGray
 & $SteamCmdExe +login $SteamLogin +workshop_build_item $VdfPath +quit
 $exitCode = $LASTEXITCODE
 
-if ($exitCode -ne 0) {
+# Exit code 7 is returned by steamcmd after a successful upload when it unloads the Steam API.
+if ($exitCode -eq 7) {
+    Write-Host "steamcmd exited with code 7 (normally benign after an upload). Confirm 'Committing update...Success' appears above." -ForegroundColor Yellow
+}
+elseif ($exitCode -ne 0) {
     throw "steamcmd exited with code $exitCode. Check the output above for the failure reason."
 }
 
