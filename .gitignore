@@ -19,3 +19,6 @@ Thumbs.db
 SeaPowerFighterAI_decomp/
 
 dist/
+
+# Downloaded steamcmd tool and its runtime state/login cache (never commit Steam credentials/session data)
+tools/steamcmd/

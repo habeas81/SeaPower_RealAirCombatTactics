@@ -22,6 +22,26 @@
         "kind": "build",
         "isDefault": true
       }
+    },
+    {
+      // Run via Command Palette -> "Tasks: Run Task" -> "Build and Publish to Workshop".
+      // Builds first (which stages dist\RealAirCombatTactics\ via the csproj's PostBuild target),
+      // then uploads that folder to Steam Workshop with steamcmd. Prompts for your Steam password/
+      // Steam Guard code in the terminal on first login; never run automatically from Ctrl+Shift+B.
+      "label": "Build and Publish to Workshop",
+      "dependsOn": "build",
+      "command": "powershell",
+      "type": "process",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "${workspaceFolder}/scripts/Publish-Workshop.ps1"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }
