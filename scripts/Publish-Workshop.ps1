@@ -36,7 +36,8 @@
     Your Steam account login name. Defaults to $env:SP_STEAM_LOGIN if set, otherwise prompts.
 
 .PARAMETER ChangeNote
-    The Workshop changelog entry for this update. Defaults to the latest git commit subject.
+    The Workshop changelog entry for this update. Defaults to the contents of scripts\changenote.txt
+    (edit it before each release, BBCode allowed), then to the latest git commit subject.
 
 .EXAMPLE
     .\scripts\Publish-Workshop.ps1
@@ -82,6 +83,11 @@ if (-not $SteamLogin) {
     $SteamLogin = Read-Host "Steam login name"
 }
 
+$ChangeNoteFile = Join-Path $PSScriptRoot "changenote.txt"
+if (-not $ChangeNote -and (Test-Path $ChangeNoteFile)) {
+    $ChangeNote = (Get-Content $ChangeNoteFile -Raw).Trim()
+}
+
 if (-not $ChangeNote) {
     $ChangeNote = (git -C $RepoRoot log -1 --pretty=%s) 2>$null
     if (-not $ChangeNote) {
@@ -101,13 +107,16 @@ if (-not (Test-Path $SteamCmdExe)) {
 
 # --- Write the workshop item script ---
 # Quote the content folder path; steamcmd's VDF parser handles embedded spaces fine inside quotes.
+# VDF values can't contain raw double quotes or line breaks; escape them.
+$ChangeNoteVdf = ($ChangeNote -replace '"', "'") -replace '\r?\n', '\n'
+
 $vdfContent = @"
 "workshopitem"
 {
     "appid"            "$AppId"
     "publishedfileid"  "$WorkshopId"
     "contentfolder"    "$ContentDir"
-    "changenote"       "$ChangeNote"
+    "changenote"       "$ChangeNoteVdf"
 }
 "@
 Set-Content -Path $VdfPath -Value $vdfContent -Encoding ASCII

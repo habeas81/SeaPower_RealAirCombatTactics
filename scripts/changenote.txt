@@ -1,0 +1,7 @@
+[b]v0.9.3[/b]
+[list]
+[*][b]Fixed:[/b] Cease Fire (X) did not stop an aircraft re-engaging. It now cancels the attack and the aircraft returns to its own navigation (e.g. rejoining formation). Under Weapons Tight/Free the game's own auto-engage can still pick up hostile air targets, which is normal.
+[*][b]Fixed:[/b] fighters sometimes launched two missiles at the same target. Re-tasked attacks now wait while a friendly missile is still flying at that target. Your own orders are not affected.
+[*][b]Fixed:[/b] the defensive Split-S could restart two or three times while levelling out, losing a lot of altitude. It now rolls upright after the vertical and exits cleanly.
+[*][b]Diagnostics:[/b] log timestamps now use mission time, so pausing the game no longer skews them.
+[/list]
