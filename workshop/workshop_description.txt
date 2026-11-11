@@ -2,9 +2,14 @@
 
 Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discipline, wingman tactics, tanker-aware fuel management, and a Doppler-notch radar model with automated missile defence. It applies to AI and player-controlled fixed-wing aircraft on every side, with a few manual tools for the player.
 
-[b]REQUIRES: Anchor Chain[/b] (Workshop item 3380210757). Subscribe to it, then see "Installation" below.
+[b]REQUIRES: Anchor Chain[/b] (Workshop item 3380210757). On the Sea Power [b]Public Beta (3D globe map)[/b] you also need [b]Anchor Chain (Beta Fix)[/b] (Workshop item 3837690165). See "Installation" below.
 
 [h2]Patch notes[/h2]
+[b]Dependency update (v0.9.3 code unchanged)[/b]
+[list]
+[*]The Public Beta needs the Anchor Chain (Beta Fix) Workshop item alongside Anchor Chain, otherwise no Anchor Chain mod loads.
+[*][b]Public Beta support is in progress:[/b] this build was made for Sea Power 0.8.7. The beta changed parts of the game code the mod hooks into (the check that stops a closer wingman vetoing an attack you ordered is not applied, and some tanker/range features may not work). It is not fully validated on the beta yet; a port is planned.
+[/list]
 [b]v0.9.3 - 1 Nov 2026[/b]
 [list]
 [*][b]Fixed:[/b] Cease Fire (X) did not stop an aircraft re-engaging. It now cancels the attack, the ordered target, a wingman extend and any pending post-defence re-engage, and the aircraft goes back to its own navigation (for example, rejoining formation). Weapons Hold also stops the pursuit. Under Weapons Tight or Free the game's own auto-engage can still pick up hostile air targets, which is normal.
@@ -82,9 +87,10 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 
 [h2]Installation[/h2]
 [olist]
-[*]Subscribe to this mod and to [b]Anchor Chain[/b] on the Workshop. Let Steam finish downloading both.
+[*]Follow the install instructions for the core Anchor Chain mod: https://github.com/SeaPower-Modders/AnchorChain and subscribe to [b]Anchor Chain[/b] on the Workshop.
+[*]Also subscribe to [b]Anchor Chain (Beta Fix)[/b]: https://steamcommunity.com/sharedfiles/filedetails/?id=3837690165 and follow the one-time preloader step on its page. This is required on the Sea Power Public Beta (3D globe map). Let Steam finish downloading everything.
 [*]Launch Sea Power and open the [b]Mods[/b] menu from the main menu.
-[*]Find [b]Anchor Chain[/b] in the list and make sure it is [b]enabled[/b] (ticked).
+[*]Make sure [b]Anchor Chain (Beta Fix)[/b] (folder AnchorChain_Beta) is [b]enabled[/b] and above Anchor Chain.
 [*]Find [b]Real Air Combat Tactics[/b] and make sure it is [b]enabled[/b] as well. Both must be enabled.
 [*][b]Fully exit the game[/b] (quit to desktop, not just to the main menu) and start it again. The mod only loads at game start.
 [*]To check that it loaded, open [i]Sea Power\BepInEx\SeaPowerFighterAI.log[/i]. It should start with a line saying the mod initialised. If the file does not exist, the mod is not enabled or Anchor Chain is not enabled.

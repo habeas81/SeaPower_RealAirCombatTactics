@@ -1,5 +1,6 @@
 {
   "appId": 1286220,
   "workshopItemId": 3827346397,
-  "contentFolder": "dist/RealAirCombatTactics"
+  "contentFolder": "dist/RealAirCombatTactics",
+  "descriptionFile": "workshop/workshop_description.txt"
 }

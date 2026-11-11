@@ -39,6 +39,10 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 
 ## Patch notes
 
+**Dependency update (v0.9.3 code unchanged)**
+- The Public Beta (3D globe map) needs the Anchor Chain (Beta Fix) Workshop item alongside Anchor Chain.
+- Public Beta support is in progress: the mod does not compile against the beta's `Seapower-Scripts` yet (`AI.EngagementRangeForObject` and `AircraftParameters._rangeMultiplierCurve` / `_altitudeEfficiencyCurve` changed) and `ExplicitOrderShooterPatch` does not apply (`AI.CloserEligibleShooterExists` was replaced by the game's air-director logic). The published build is the 0.8.7 build.
+
 **v0.9.3**
 - Fixed: Cease Fire (X) did not stop re-engagement. It now cancels hot pursuit, the player-ordered target, a wingman extend and a pending post-defence re-engage, and the aircraft returns to its own navigation. Weapons Hold also stops hot pursuit. (Under Weapons Tight/Free the game's own auto-engage can still pick up hostile air targets.)
 - Fixed: fighters launching two missiles at one target. Hot-pursuit re-tasks now wait while any friendly missile is still viable, and a second queued missile task on the same target is blocked (player-ordered tasks are exempt).
@@ -63,13 +67,14 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 ## Requirements
 
 - Sea Power 0.8.7+ (Steam).
-- [Anchor Chain](https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757) (Workshop) with BepInEx 5.4.x.
+- [Anchor Chain](https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757) (Workshop) with BepInEx 5.4.x. Follow its install instructions: https://github.com/SeaPower-Modders/AnchorChain
+- On the Sea Power Public Beta (3D globe map): also [Anchor Chain (Beta Fix)](https://steamcommunity.com/sharedfiles/filedetails/?id=3837690165) ([source](https://github.com/habeas81/AnchorChain-SP_Beta)), which includes a one-time preloader update.
 - .NET SDK 10.0 to build from source.
 
 ## Installing
 
 **Steam Workshop (recommended):**
-1. Subscribe to this mod and to Anchor Chain, and let Steam finish downloading both.
+1. Follow the install instructions for the core Anchor Chain mod (https://github.com/SeaPower-Modders/AnchorChain), then subscribe to this mod, Anchor Chain, and Anchor Chain (Beta Fix) (https://steamcommunity.com/sharedfiles/filedetails/?id=3837690165; required on the Public Beta). Let Steam finish downloading.
 2. Launch Sea Power and open the *Mods* menu.
 3. Make sure both *Anchor Chain* and *Real Air Combat Tactics* are enabled.
 4. Fully exit the game (quit to desktop) and start it again; mods only load at game start.

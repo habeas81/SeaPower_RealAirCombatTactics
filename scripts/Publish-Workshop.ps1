@@ -110,6 +110,21 @@ if (-not (Test-Path $SteamCmdExe)) {
 # VDF values can't contain raw double quotes or line breaks; escape them.
 $ChangeNoteVdf = ($ChangeNote -replace '"', "'") -replace '\r?\n', '\n'
 
+function ConvertTo-VdfValue([string]$Text) { ($Text -replace '"', "'") -replace '\r?\n', '\n' }
+
+# Optional metadata (needed when creating a new item; on updates it overwrites what is on the Workshop page):
+# title, descriptionFile (path relative to the repo), previewFile (relative), visibility (0 public, 1 friends, 2 private).
+$extra = ""
+if ($Config.PSObject.Properties.Name -contains "title") { $extra += "    `"title`"          `"$(ConvertTo-VdfValue $Config.title)`"`r`n" }
+if ($Config.PSObject.Properties.Name -contains "descriptionFile") {
+    $descPath = Join-Path $RepoRoot ($Config.descriptionFile -replace '/', '\')
+    $extra += "    `"description`"    `"$(ConvertTo-VdfValue ((Get-Content $descPath -Raw).Trim()))`"`r`n"
+}
+if ($Config.PSObject.Properties.Name -contains "previewFile") {
+    $extra += "    `"previewfile`"    `"$(Join-Path $RepoRoot ($Config.previewFile -replace '/', '\'))`"`r`n"
+}
+if ($Config.PSObject.Properties.Name -contains "visibility") { $extra += "    `"visibility`"     `"$($Config.visibility)`"`r`n" }
+
 $vdfContent = @"
 "workshopitem"
 {
@@ -117,7 +132,7 @@ $vdfContent = @"
     "publishedfileid"  "$WorkshopId"
     "contentfolder"    "$ContentDir"
     "changenote"       "$ChangeNoteVdf"
-}
+$extra}
 "@
 Set-Content -Path $VdfPath -Value $vdfContent -Encoding ASCII
 
