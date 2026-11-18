@@ -130,12 +130,27 @@ namespace SeaPowerFighterAI
                     Command = new DelegateCommand((object _) => NotchState.Begin(ac))
                 };
                 entry.AmmoAmount = 1;
+                SetTooltip(entry, "Notch", "Turn into the radar's Doppler notch (beam it, chaff)");
                 __instance.WeaponEntries.Add(entry);
             }
             catch (Exception ex)
             {
                 ModLog.Error("NotchBottomBarPatch", ex);
             }
+        }
+
+        // The bottom-bar tooltip shows the entry's Name / Nickname / Type, which only the weapon constructors fill (they
+        // are get-only); a Generic entry leaves them null and the game shows "MISSING TEXT". Set the backing fields.
+        private static readonly System.Reflection.FieldInfo NameField = AccessTools.Field(typeof(WeaponEntry), "<Name>k__BackingField");
+        private static readonly System.Reflection.FieldInfo NicknameField = AccessTools.Field(typeof(WeaponEntry), "<Nickname>k__BackingField");
+        private static readonly System.Reflection.FieldInfo TypeField = AccessTools.Field(typeof(WeaponEntry), "<Type>k__BackingField");
+
+        internal static void SetTooltip(WeaponEntry entry, string name, string type)
+        {
+            NameField?.SetValue(entry, name);
+            NicknameField?.SetValue(entry, string.Empty);
+            TypeField?.SetValue(entry, type);
+            entry.Mode.Value = string.Empty;
         }
     }
 }

@@ -52,14 +52,45 @@ namespace SeaPowerFighterAI
         public static readonly RadarClass Pd = new RadarClass { Name = "PD", HalfWidthKt = 55f, DwellSec = 3f };
         public static readonly RadarClass Aesa = new RadarClass { Name = "PD-AESA", HalfWidthKt = 40f, DwellSec = 2f };
         public static readonly RadarClass Seeker = new RadarClass { Name = "Seeker-PD", HalfWidthKt = 45f, DwellSec = 1.5f };
+        // Low-PRF radars whose look-down mode rejects clutter by MTI / envelope detection rather than full pulse-Doppler
+        // filtering: they still lose a target with near-zero radial speed in look-down, over a wider and cruder notch.
+        public static readonly RadarClass Mti = new RadarClass { Name = "MTI", HalfWidthKt = 90f, DwellSec = 5f };
 
-        // First match wins. Anything airborne that matches nothing is treated as PD and logged once.
+        // Every airborne radar in the stock Sea Power 0.9.0 sensors.ini, classified from open sources. The game's own
+        // data has no pulse-Doppler/pulse flag (SignalProcessing is sonar only; LookDownMultiplier is only a range factor).
+        //   AWG-10/10A/10B: first operational pulse-Doppler look-down/shoot-down fighter radar (Smithsonian NASM
+        //     catalogue: "first multi-mode radar set that included pulse-doppler look-down capability"); AWG-11/12 are
+        //     its UK Phantom derivatives. AWG-9 (F-14) and APG-63 (F-15) are first-generation US PD sets.
+        //   Blue Fox (Sea Harrier FRS.1): pulse radar; its PD successor was Blue Vixen (Flight International).
+        //   Sapfir-23ML / Saphir-25 (MiG-23ML/MLD, MiG-25PD) and Cyrano IV family (Mirage F1): sources disagree between
+        //     coherent PD and MTI/envelope-detection look-down (Wikipedia RP-23 Sapfir; DCS/BMS forums citing Mladenov),
+        //     so they get the wider MTI notch. Cyrano I/II, RP-15/RP-22, Smerch-A3, JL-7, Aida-2 and the APQ-109/120/
+        //     153 (F-4D/F-4E/F-5E) are pulse radars with no Doppler notch.
+        private static readonly Dictionary<string, RadarClass> Known = new Dictionary<string, RadarClass>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["AN/AWG-9"] = PdEarly, ["AN/AWG-9_Phoenix"] = PdEarly, ["AN/APG-63"] = PdEarly,
+            ["AN/AWG-10A"] = PdEarly, ["AN/AWG-10B"] = PdEarly, ["AN/AWG-11"] = PdEarly, ["AN/AWG-12"] = PdEarly,
+            ["AN/APG-65"] = Pd, ["N019K"] = Pd, ["AN/ALQ-153"] = Pd,
+            ["Saphir-23MLA-2"] = Mti, ["Saphir-25"] = Mti,
+            ["Cyrano_IV-2"] = Mti, ["Cyrano_IV-M"] = Mti,
+            ["Blue_Fox"] = None, ["Cyrano_I"] = None, ["Cyrano_II"] = None, ["Aida-2"] = None,
+            ["RP-15M"] = None, ["RP-22M"] = None, ["Smerch-A3"] = None, ["JL-7"] = None,
+            ["AN/APQ-109"] = None, ["AN/APQ-120"] = None, ["AN/APQ-153"] = None,
+            ["AN/APQ-113"] = None, ["AN/APQ-144"] = None, ["AN/APQ-161"] = None,
+            ["Fan_Tail"] = None, ["MD-9"] = None, ["Red_Steer"] = None,
+            ["Weather_Radar"] = None, ["Nav_Radar"] = None,
+        };
+
+        // Fallback for radars not in Known (e.g. from other mods). First match wins. Anything airborne that matches
+        // nothing is treated as PD and logged once.
         private static readonly (Regex pattern, RadarClass cls)[] Table =
         {
             (new Regex(@"APG-?(77|79|80|81|82|83)|N036|RBE2.?AA|ES-?05|Captor.?E|KLJ-?7A", RegexOptions.IgnoreCase), Aesa),
-            (new Regex(@"APG-?63(?!\()|APG-?63$", RegexOptions.IgnoreCase), PdEarly),
-            (new Regex(@"APG-?(63|65|66|68|70|71|73)|APY-?(1|2|3)|N0(01|10|11|19|25|35)|Zhuk|RDI|RDY|RDM|Blue_?Fox|Foxhunter|Captor|Rubin", RegexOptions.IgnoreCase), Pd),
-            (new Regex(@"^RP-?(15|22)|APQ-?\d|APS-?\d|JL-?7|Type_?773|Type\d", RegexOptions.IgnoreCase), None),
+            (new Regex(@"APG-?63(?!\()|APG-?63$|AWG-?(9|10|11|12)", RegexOptions.IgnoreCase), PdEarly),
+            (new Regex(@"Weather_?Radar|Nav_?Radar|Blue_?Fox", RegexOptions.IgnoreCase), None),
+            (new Regex(@"Sapfir|Saphir|Cyrano_?IV", RegexOptions.IgnoreCase), Mti),
+            (new Regex(@"APG-?(63|65|66|68|70|71|73)|APY-?(1|2|3)|N0(01|10|11|19|25|35)|Zhuk|RDI|RDY|RDM|Blue_?Vixen|Foxhunter|Captor|Rubin", RegexOptions.IgnoreCase), Pd),
+            (new Regex(@"^RP-?(15|22)|APQ-?\d|APS-?\d|JL-?7|Type_?773|Type\d|Cyrano|Smerch", RegexOptions.IgnoreCase), None),
         };
 
         private static readonly Dictionary<string, RadarClass> Cache = new Dictionary<string, RadarClass>();
@@ -74,6 +105,12 @@ namespace SeaPowerFighterAI
 
             if (Cache.TryGetValue(radarName, out RadarClass c))
             {
+                return c;
+            }
+
+            if (Known.TryGetValue(radarName, out c))
+            {
+                Cache[radarName] = c;
                 return c;
             }
 

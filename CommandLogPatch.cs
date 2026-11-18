@@ -40,7 +40,7 @@ namespace SeaPowerFighterAI
             {
                 foreach (MethodInfo m in typeof(ObjectBase).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
                 {
-                    if (m.Name == name)
+                    if (m.Name == name && !m.IsGenericMethodDefinition) // 0.9.0 added SetSpeedCommand<T>: Harmony cannot patch open generic methods
                     {
                         yield return m;
                     }

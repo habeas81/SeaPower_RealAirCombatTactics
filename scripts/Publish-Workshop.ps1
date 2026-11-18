@@ -107,10 +107,11 @@ if (-not (Test-Path $SteamCmdExe)) {
 
 # --- Write the workshop item script ---
 # Quote the content folder path; steamcmd's VDF parser handles embedded spaces fine inside quotes.
-# VDF values can't contain raw double quotes or line breaks; escape them.
-$ChangeNoteVdf = ($ChangeNote -replace '"', "'") -replace '\r?\n', '\n'
+# VDF values can't contain raw double quotes, so they become single quotes. Line breaks are kept as real line breaks:
+# steamcmd does not unescape "\n", so writing it literally shows up as "\n" on the Workshop page.
+function ConvertTo-VdfValue([string]$Text) { ($Text -replace '"', "'") -replace '\r?\n', "`r`n" }
 
-function ConvertTo-VdfValue([string]$Text) { ($Text -replace '"', "'") -replace '\r?\n', '\n' }
+$ChangeNoteVdf = ConvertTo-VdfValue $ChangeNote
 
 # Optional metadata (needed when creating a new item; on updates it overwrites what is on the Workshop page):
 # title, descriptionFile (path relative to the repo), previewFile (relative), visibility (0 public, 1 friends, 2 private).

@@ -362,8 +362,8 @@ namespace SeaPowerFighterAI
             s.PrevPosOverride = mc.commandPositionOverride;
             s.PrevAltitude = ac.DesiredAltitude.Value;
             s.PrevSpeedKt = ac.SpeedCommand.Value != null ? ac.SpeedCommand.Value.SpeedInKnots : 0f;
-            s.PrevMach = ac.SpeedCommand.Value is ConstantMach ? ac.SpeedCommand.Value.SpeedInMach : 0f;
-            s.WantAlt = ac.transform.position.y * 220.47266f;
+            s.PrevMach = ac.SpeedCommand.Value?.Kind == SpeedKind.Mach ? ac.SpeedCommand.Value.SpeedInMach : 0f;
+            s.WantAlt = ac.transform.position.y; // DesiredAltitude is in Unity units (1000 ft = 4.536), not feet
             UpdateAim(ac, s, lead);
             ModLog.Event($"t={now:0} EXTEND start: {ac.getUIDAndName()} leaves the circle fight of {lead.getUIDAndName()} vs {s.Bandit.getUIDAndName()} to {s.ExtendNm:0.0} nm ({ammo}, launch range {launchNm:0} nm).");
             Reassert(ac);
@@ -493,7 +493,7 @@ namespace SeaPowerFighterAI
         {
             if (ac.Motioncontroller is FixedWingFlightPhysics mc)
             {
-                mc.commandPositionOverride = s.PrevPosOverride;
+                mc.commandPositionOverride = Handback.PositionOverride(ac, s.PrevPosOverride);
             }
 
             if (ac.IsDestroyed)
@@ -518,7 +518,7 @@ namespace SeaPowerFighterAI
             float[] mach = ac.Ap._speedValuesInMach;
             float want = mach[mach.Length - 1];
             ISpeedCommand cmd = ac.SpeedCommand.Value;
-            if (!(cmd is ConstantMach) || Mathf.Abs(cmd.SpeedInMach - want) > 0.001f)
+            if (cmd == null || cmd.Kind != SpeedKind.Mach || Mathf.Abs(cmd.SpeedInMach - want) > 0.001f)
             {
                 ac.SetSpeedCommand(new ConstantMach(want, ac));
             }

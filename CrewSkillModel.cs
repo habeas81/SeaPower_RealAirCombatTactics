@@ -11,8 +11,11 @@ namespace SeaPowerFighterAI
     //   BotchChance     - chance, re-rolled every BotchRerollSec, that the notch/beam aim is off for that interval.
     //   BotchMaxDeg     - largest heading error of a botched interval (actual error is 40-100 % of this, random side).
     //   LastDitchLateSec- how much later than ideal the last-ditch max pull is applied.
-    //   GateIgnore      - offensive: how much of the speed-aware launch-range reduction (LaunchRangeGatePatch) the
-    //                     shooter ignores, i.e. 0 = disciplined, 1 = fires at the missile's full vanilla range.
+    //   EarlyToLabel    - offensive (air-to-air missiles): how far from the game's realistic kinematic range toward the
+    //                     missile's published (label) maximum the crew is willing to fire. 1 = at the label range: shots
+    //                     at the edge of the envelope that a defending target can easily outrun or out-turn.
+    //   HoldFraction    - offensive: fraction of the kinematic range a disciplined crew waits for (< 1 = closer, for a
+    //                     higher chance to hit). Only used when EarlyToLabel is 0.
     public static class CrewSkillModel
     {
         public static readonly bool Enabled = true;
@@ -25,14 +28,15 @@ namespace SeaPowerFighterAI
             public float BotchChance;
             public float BotchMaxDeg;
             public float LastDitchLateSec;
-            public float GateIgnore;
+            public float EarlyToLabel;
+            public float HoldFraction;
         }
 
-        private static readonly Profile Green = new Profile { ReactionSec = 6f, BotchChance = 0.35f, BotchMaxDeg = 30f, LastDitchLateSec = 0.6f, GateIgnore = 0.50f };
-        private static readonly Profile Trained = new Profile { ReactionSec = 3f, BotchChance = 0.18f, BotchMaxDeg = 22f, LastDitchLateSec = 0.35f, GateIgnore = 0.25f };
-        private static readonly Profile Seasoned = new Profile { ReactionSec = 1.5f, BotchChance = 0.08f, BotchMaxDeg = 15f, LastDitchLateSec = 0.15f, GateIgnore = 0.10f };
-        private static readonly Profile Veteran = new Profile { ReactionSec = 0.5f, BotchChance = 0.03f, BotchMaxDeg = 10f, LastDitchLateSec = 0.05f, GateIgnore = 0f };
-        private static readonly Profile Ultra = new Profile { ReactionSec = 0f, BotchChance = 0f, BotchMaxDeg = 0f, LastDitchLateSec = 0f, GateIgnore = 0f };
+        private static readonly Profile Green = new Profile { ReactionSec = 6f, BotchChance = 0.35f, BotchMaxDeg = 30f, LastDitchLateSec = 0.6f, EarlyToLabel = 0.85f, HoldFraction = 1f };
+        private static readonly Profile Trained = new Profile { ReactionSec = 3f, BotchChance = 0.18f, BotchMaxDeg = 22f, LastDitchLateSec = 0.35f, EarlyToLabel = 0.35f, HoldFraction = 1f };
+        private static readonly Profile Seasoned = new Profile { ReactionSec = 1.5f, BotchChance = 0.08f, BotchMaxDeg = 15f, LastDitchLateSec = 0.15f, EarlyToLabel = 0f, HoldFraction = 1f };
+        private static readonly Profile Veteran = new Profile { ReactionSec = 0.5f, BotchChance = 0.03f, BotchMaxDeg = 10f, LastDitchLateSec = 0.05f, EarlyToLabel = 0f, HoldFraction = 0.85f };
+        private static readonly Profile Ultra = new Profile { ReactionSec = 0f, BotchChance = 0f, BotchMaxDeg = 0f, LastDitchLateSec = 0f, EarlyToLabel = 0f, HoldFraction = 0.75f };
 
         private static readonly System.Random Rng = new System.Random();
 
@@ -60,6 +64,8 @@ namespace SeaPowerFighterAI
                 return lo + (hi - lo) * Rng.NextDouble();
             }
         }
+
+        public static string SkillName(ObjectBase unit) => unit?._crew != null ? unit._crew.OverallSkill.ToString() : "default";
 
         // Reaction delay for this crew: mean +/- 30 %.
         public static float RollReactionSec(ObjectBase unit) => For(unit).ReactionSec * (float)Uniform(0.7, 1.3);

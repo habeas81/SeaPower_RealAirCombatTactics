@@ -197,7 +197,7 @@ namespace SeaPowerFighterAI
             }
 
             return rival._weaponStatus == ObjectBase.WeaponStatus.Tight
-                   && (target.transform.position - rival.transform.position).magnitude <= ai.EngagementRangeForObject(target);
+                   && ai.IsWithinEngagementRange(target, (target.transform.position - rival.transform.position).magnitude);
         }
 
         // Seconds until the shooter's best available missile could hit: travel to firing range plus flight time.

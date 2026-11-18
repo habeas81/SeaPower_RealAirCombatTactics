@@ -9,12 +9,13 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 **Offence**
 - Shoot-look-shoot: no second missile at a target that already has a live missile in flight, so long- and medium-range missiles are not wasted.
 - Lead-pursuit intercepts: aim where the target will be, not where it is (arc-aware, velocity-filtered, hot pursuit, pursuit speed management).
-- Speed-aware launch-range gate against fast targets.
+- Crew-skill launch range: green crews fire early, toward the missile's published maximum (easy to defeat); seasoned crews fire at the game's computed range; veterans wait for a closer, higher-probability shot.
 - Post-launch crank (keeps the radar on the target while turning off); pressure shots.
 - 2-ship tactics: combat spread and target deconfliction, so the pair does not stack up behind the leader and fire redundant salvos.
 - Wingman extend-and-turn-in: when the flight lead is stuck in a turning fight, the wingman extends away, then turns back in for a missile shot (aborts on any other threat).
 - **Ordnance jettison:** an aircraft carrying an air-to-ground loadout (free-fall bombs, cluster stores) or external fuel tanks that is threatened by an air-to-air engagement (inbound missile, or a close, fast hostile pointed at it) dumps those stores to fight clean and go defensive, as real crews do. Applies to AI and player aircraft. Guided air-to-ground and anti-ship missiles are kept, not jettisoned. Expect strike aircraft to lose their bombs when you engage them.
-- Plain right-click attack orders: right-clicking a hostile air contact with the formation selected (no weapon chosen first) now commits the engage and the flight pursues, instead of staying on "heading to waypoint".
+
+- Plain right-click attack orders: right-clicking a hostile air contact with the formation selected (no weapon chosen first) now commits the engage and the flight pursues, instead of staying on "heading to waypoint".
 - Radar discipline: aircraft without a Fox-3 weapon keep radar off until inside kinematic range plus lock time plus 60 s.
 
 **Tanker and fuel**
@@ -27,21 +28,30 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 
 **Automated missile defence**
 - On a detected incoming missile: notch, chaff, Split-S / Immelman reversal inside the notch, hold, pitbull re-notch, kinematic weave, last-ditch pull.
+- A pilot fighting for his life does not obey steering orders: a player order given during a defence shows "Unable, defending" and is followed once the threat is resolved. Orders with no threat to life are obeyed at once.
+- Post-defence search: after surviving a missile with nothing of its own to re-engage, an aircraft (AI sides by default) weaves toward where the shot came from for a few minutes, radar on, checking its own and its wingman's six, until it sees a hostile, is shot at again or the time runs out. Wingmen of an aircraft that is shot at or shot down do the same. Map tag `DEF-SEARCH`; config `[PostDefenseSearch]`.
 
 **Crew skill**
-- Green to Ultra scales reaction delay, notch accuracy, last-ditch timing and offensive launch range.
-
-**Game-bug fixes**
-- Vertical-arc fix: the game's pitch-to-target helper is only correct when flying north/south, so radar missiles were held ("target not in vertical arc") until ~2.7 nm on east/west headings. Replaced with a correct elevation calculation; Sparrows/AMRAAMs now fire at their real range on any heading.
+- Green to Ultra scales reaction delay, notch accuracy, last-ditch timing and air-to-air launch range.
 
 **Diagnostics (off by default)**
 - Verbose tracing (pursuit/missile traces, command log, missile-hold log, loadout dump) costs frame time and is disabled. To enable it for a bug report, set `Diagnostics = true` in `BepInEx\config\` (`<plugin guid>.cfg`, created on first run) and restart. The log is capped at 20 MB.
 
 ## Patch notes
 
-**Dependency update (v0.9.3 code unchanged)**
-- The Public Beta (3D globe map) needs the Anchor Chain (Beta Fix) Workshop item alongside Anchor Chain.
-- Public Beta support is in progress: the mod does not compile against the beta's `Seapower-Scripts` yet (`AI.EngagementRangeForObject` and `AircraftParameters._rangeMultiplierCurve` / `_altitudeEfficiencyCurve` changed) and `ExplicitOrderShooterPatch` does not apply (`AI.CloserEligibleShooterExists` was replaced by the game's air-director logic). The published build is the 0.8.7 build.
+**v0.9.4**
+- Updated for Sea Power 0.9.0. Requires Anchor Chain 1.2.0 with its 1.2.0 preloader; Anchor Chain (Beta Fix) is no longer needed.
+- Fixed: aircraft could ignore orders after a missile defence, notch or wingman extend (flying on at a stale point) and could be pinned at an old altitude; control is now handed back to whatever the game expects at that moment.
+- Fixed: Split-S could carry on into the climbing half of a loop (Split-S then Immelman).
+- Fixed: missile speed checks were always false on 0.9.0, so speed commands were re-issued every tick and Mach was not restored after a defence.
+- Fixed: wingman extend sent the jet toward its ceiling (altitude passed in the wrong unit).
+- Changed: the mod's own launch-range reduction is removed; 0.9.0's missile range already accounts for target speed and evasion, and applying both left fighters chasing for a Sidewinder shot with Sparrows aboard. Crew skill now sets the launch range instead (green crews fire early toward the label range, veterans hold for a closer shot).
+- New: post-defence search, and wingmen of an aircraft that is shot at or shot down search for the shooter.
+- New: a player order during a defence is acknowledged ("Unable, defending") and followed when the threat is resolved.
+- Radar notch: every stock airborne radar classified from open sources (AWG-9/10/11/12 and APG-63 early pulse-Doppler; Sapfir-23ML, Saphir-25 and Cyrano IV a wider MTI notch; Blue Fox and the F-4D/E, F-5E radars pulse, cannot be notched).
+- Fixed: the NOTCH bottom-bar button tooltip showed "MISSING TEXT".
+- Removed: the vertical-arc fix (the game fixed that bug in 0.9.0).
+- Diagnostics: pursuit lines show commanded altitude and each missile's fire state and range limits; enemy status tags are shown on the map while Diagnostics is on.
 
 **v0.9.3**
 - Fixed: Cease Fire (X) did not stop re-engagement. It now cancels hot pursuit, the player-ordered target, a wingman extend and a pending post-defence re-engage, and the aircraft returns to its own navigation. Weapons Hold also stops hot pursuit. (Under Weapons Tight/Free the game's own auto-engage can still pick up hostile air targets.)
@@ -66,15 +76,14 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 
 ## Requirements
 
-- Sea Power 0.8.7+ (Steam).
-- [Anchor Chain](https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757) (Workshop) with BepInEx 5.4.x. Follow its install instructions: https://github.com/SeaPower-Modders/AnchorChain
-- On the Sea Power Public Beta (3D globe map): also [Anchor Chain (Beta Fix)](https://steamcommunity.com/sharedfiles/filedetails/?id=3837690165) ([source](https://github.com/habeas81/AnchorChain-SP_Beta)), which includes a one-time preloader update.
+- Sea Power 0.9.0+ (Steam).
+- [Anchor Chain](https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757) 1.2.0 (Workshop) with BepInEx 5.4.x. Follow its install instructions (https://github.com/SeaPower-Modders/AnchorChain) and use the 1.2.0 preloader (`ACPreloader.zip` from the [V1.2.0 release](https://github.com/SeaPower-Modders/AnchorChain/releases/tag/V1.2.0)); older preloaders and the Anchor Chain (Beta Fix) preloader do not start Anchor Chain 1.2.0 on Sea Power 0.9.0.
 - .NET SDK 10.0 to build from source.
 
 ## Installing
 
 **Steam Workshop (recommended):**
-1. Follow the install instructions for the core Anchor Chain mod (https://github.com/SeaPower-Modders/AnchorChain), then subscribe to this mod, Anchor Chain, and Anchor Chain (Beta Fix) (https://steamcommunity.com/sharedfiles/filedetails/?id=3837690165; required on the Public Beta). Let Steam finish downloading.
+1. Follow the install instructions for the core Anchor Chain mod (https://github.com/SeaPower-Modders/AnchorChain), including the 1.2.0 preloader, then subscribe to this mod and Anchor Chain. Let Steam finish downloading.
 2. Launch Sea Power and open the *Mods* menu.
 3. Make sure both *Anchor Chain* and *Real Air Combat Tactics* are enabled.
 4. Fully exit the game (quit to desktop) and start it again; mods only load at game start.
@@ -108,7 +117,7 @@ and mirrors it into the game's `StreamingAssets`. In VS Code, `Ctrl+Shift+B` run
 
 ## Status
 
-v0.9.3 Beta. Tuning is done through log-driven test missions; constants are at the top of each source file.
+v0.9.4 Beta. Tuning is done through log-driven test missions; constants are at the top of each source file.
 
 ## License
 

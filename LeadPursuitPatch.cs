@@ -120,7 +120,7 @@ namespace SeaPowerFighterAI
             // so compare the actual command as well.
             float wantMach = ac.Ap._speedValuesInMach[index];
             ISpeedCommand cmd = ac.SpeedCommand.Value;
-            bool commandMatches = cmd is ConstantMach && Mathf.Abs(cmd.SpeedInMach - wantMach) < 0.001f;
+            bool commandMatches = cmd != null && cmd.Kind == SpeedKind.Mach && Mathf.Abs(cmd.SpeedInMach - wantMach) < 0.001f;
             if (ac.getTelegraph() != index || !commandMatches)
             {
                 ac.setTelegraph(index + 1);
@@ -138,7 +138,7 @@ namespace SeaPowerFighterAI
 
         private static readonly ConditionalWeakTable<Aircraft, RangeCache> RangeCaches = new ConditionalWeakTable<Aircraft, RangeCache>();
 
-        // Speed-aware kinematic launch range (as gated by LaunchRangeGatePatch), cached ~1 s; falls back to catalogue max.
+        // Kinematic launch range (the game's, adjusted for crew skill by CrewLaunchRangePatch), cached ~1 s; falls back to catalogue max.
         public static float EffectiveRange(Aircraft ac, ObjectBase target, AmmunitionParameters ap)
         {
             RangeCache c = RangeCaches.GetOrCreateValue(ac);
@@ -258,6 +258,50 @@ namespace SeaPowerFighterAI
         }
 
         private const float FtToUnity = 1f / 220.47266f;
+
+        // Diagnostics: each air-to-air missile type aboard and the game's own engage state for it (why it is or is not
+        // firing, e.g. TargetIsNotInVerticalArc, MissileCanNotReachTarget).
+        public static string WeaponStates(Aircraft ac, ObjectBase target)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            if (ac._ai == null)
+            {
+                return "-";
+            }
+
+            foreach (string name in ac._ai.AmmoForTarget(target, includeSecondary: false))
+            {
+                if (!ac.AmmunitionAmountDictionary.TryGetValue(name, out int count) || count < 1)
+                {
+                    continue;
+                }
+
+                string engage = "idle";
+                string ranges = "";
+                var systems = ac.GetWeaponSystemsForAmmunition(name);
+                if (systems != null)
+                {
+                    foreach (WeaponSystem ws in systems)
+                    {
+                        if (ws != null && ws._targetObject != null)
+                        {
+                            engage = ws._engageState.ToString();
+                            if (ws is WeaponSystemHardpoint hp)
+                            {
+                                ObjectBase.EngagementRange r = hp._calculatedRange;
+                                ranges = $"(kin {r.KinematicRange / 27.559496f:0.0}/sens {r.SensorRange / 27.559496f:0.0}/terr {r.TerrainRange / 27.559496f:0.0}nm)";
+                            }
+
+                            break;
+                        }
+                    }
+                }
+
+                parts.Add($"{name}x{count}:{engage}{ranges}");
+            }
+
+            return parts.Count == 0 ? "none" : string.Join(", ", parts);
+        }
 
         // Half-width (deg, either side of the nose) of the weapon's firing arc from the game's weapon data; 180 = unrestricted.
         // The arc is a fixed data value, so it is the limit the shot actually needs, whatever the radar gimbal could do.
@@ -539,7 +583,8 @@ namespace SeaPowerFighterAI
                 string state = ac.StateMachine?.CurrentState?.GetType().Name ?? "?";
                 string text = Describe(ac.transform.position, ac._velocityVecInUnity, ac.transform.forward,
                     target.transform.position, target.UnityVelocityVector, set, flown);
-                ModLog.Event($"t={now:0} PURSUIT {ac.getUIDAndName()} [{state}] -> {target.getUIDAndName()}: {text} | modLead={(modApplied ? "yes" : "no")} telegraph={ac.getTelegraph() + 1}/{ac.Ap._speedValuesInMach.Length} fuelRange={ac.RangeOnMap.Value:0.00} directPoint={__instance._directPoint}");
+                ModLog.Event($"t={now:0} PURSUIT {ac.getUIDAndName()} [{state}] -> {target.getUIDAndName()}: {text} | modLead={(modApplied ? "yes" : "no")} telegraph={ac.getTelegraph() + 1}/{ac.Ap._speedValuesInMach.Length} fuelRange={ac.RangeOnMap.Value:0.00} directPoint={__instance._directPoint}"
+                    + $" | wantAlt={ac.DesiredAltitude.Value * 220.47266f:0}ft altOverride={(__instance.commandAltitudeOverride ? $"{__instance.CommandAltitude * 220.47266f:0}ft" : "off")} | weapons={LeadCore.WeaponStates(ac, target)}");
             }
             catch (System.Exception ex)
             {

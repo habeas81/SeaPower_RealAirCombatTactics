@@ -66,6 +66,12 @@ namespace SeaPowerFighterAI
                         "Combat-jettison free-fall bombs when an aircraft with weapon status TIGHT has a missile inbound.").Value;
                     JettisonBombsOnFree = cfg.Bind("Jettison", "BombsOnFree", false,
                         "Combat-jettison free-fall bombs when an aircraft with weapon status FREE has a missile inbound. Leave false to keep a strike committed: set ROE to Free to protect the bombs.").Value;
+                    PostDefenseSearch.Enabled = cfg.Bind("PostDefenseSearch", "Enabled", true,
+                        "After surviving a missile with no target of its own, an aircraft searches for the shooter (weaving toward where the shot came from, radar on) instead of flying straight back to its route.").Value;
+                    PostDefenseSearch.SearchMinutes = Math.Max(1f, Math.Min(10f, cfg.Bind("PostDefenseSearch", "Minutes", 3f,
+                        "How long the post-defence search lasts, in minutes (1 to 10).").Value));
+                    PostDefenseSearch.PlayerAircraft = cfg.Bind("PostDefenseSearch", "PlayerAircraft", false,
+                        "Also apply the post-defence search to the player's own aircraft (false: AI-controlled sides only).").Value;
                     BombsPerJettison = cfg.Bind("Jettison", "BombsPerJettison", 0,
                         "Bombs of each type released per jettison salvo (try every few seconds while the missile is inbound). 2 = a symmetric pair, 0 = drop everything at once.").Value;
                 }

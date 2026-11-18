@@ -1,14 +1,23 @@
-[h1]Real Air Combat Tactics (v0.9.3 Beta)[/h1]
+[h1]Real Air Combat Tactics (v0.9.4 Beta)[/h1]
 
 Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discipline, wingman tactics, tanker-aware fuel management, and a Doppler-notch radar model with automated missile defence. It applies to AI and player-controlled fixed-wing aircraft on every side, with a few manual tools for the player.
 
-[b]REQUIRES: Anchor Chain[/b] (Workshop item 3380210757). On the Sea Power [b]Public Beta (3D globe map)[/b] you also need [b]Anchor Chain (Beta Fix)[/b] (Workshop item 3837690165). See "Installation" below.
+[b]REQUIRES: Sea Power 0.9.0+ and Anchor Chain 1.2.0[/b] (Workshop item 3380210757), installed with its [b]1.2.0 preloader[/b]. Anchor Chain (Beta Fix) is no longer needed. See "Installation" below.
 
 [h2]Patch notes[/h2]
-[b]Dependency update (v0.9.3 code unchanged)[/b]
+[b]v0.9.4 - 18 Nov 2026[/b]
 [list]
-[*]The Public Beta needs the Anchor Chain (Beta Fix) Workshop item alongside Anchor Chain, otherwise no Anchor Chain mod loads.
-[*][b]Public Beta support is in progress:[/b] this build was made for Sea Power 0.8.7. The beta changed parts of the game code the mod hooks into (the check that stops a closer wingman vetoing an attack you ordered is not applied, and some tanker/range features may not work). It is not fully validated on the beta yet; a port is planned.
+[*][b]Updated for Sea Power 0.9.0.[/b] Requires Anchor Chain 1.2.0 with its 1.2.0 preloader; Anchor Chain (Beta Fix) is no longer needed.
+[*][b]Fixed:[/b] aircraft could ignore your orders after a missile defence, notch or wingman extend, flying on at a stale point, or stay pinned at an old altitude.
+[*][b]Fixed:[/b] the defensive Split-S could carry on into the climbing half of a loop.
+[*][b]Fixed:[/b] speed handling during pursuit and defence on 0.9.0 (speed was re-commanded constantly and Mach not restored after a defence).
+[*][b]Fixed:[/b] wingman extend could send the jet climbing toward its ceiling.
+[*][b]Changed:[/b] fighters now fire Sparrow-class missiles at the game's own range instead of chasing for a Sidewinder shot. Sea Power 0.9.0 already accounts for target speed and evasion, so the mod's extra range reduction is removed. Crew skill sets the launch range instead: green crews fire early, near the missile's published maximum (easy to defeat); veterans hold for a closer, surer shot.
+[*][b]New:[/b] a pilot fighting for his life does not obey steering orders. An order given during a missile defence shows "Unable, defending" and is followed once the threat is defeated. Orders with no threat to life are obeyed at once.
+[*][b]New:[/b] post-defence search. After surviving a missile, an AI aircraft with nothing to re-engage weaves toward where the shot came from for a few minutes, radar on, checking its six, instead of flying straight on. Wingmen of an aircraft that is shot at or shot down do the same. Map tag DEF-SEARCH.
+[*][b]New:[/b] every stock airborne radar is classified for the notch model from open sources. The F-4J's AWG-10 and the F-14's AWG-9 are early pulse-Doppler; MiG-23ML/MiG-25PD and Mirage F1 radars get a wider, cruder notch; Blue Fox and the F-4D/E and F-5E radars cannot be notched.
+[*][b]Fixed:[/b] the NOTCH bottom-bar button tooltip showed "MISSING TEXT".
+[*][b]Removed:[/b] the vertical-arc fix; Sea Power 0.9.0 fixed that game bug itself.
 [/list]
 [b]v0.9.3 - 1 Nov 2026[/b]
 [list]
@@ -42,8 +51,7 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 [list]
 [*][b]Shoot-look-shoot:[/b] a fighter will not fire a second missile at a target that already has a live missile in flight at it. This stops long- and medium-range missiles being wasted just before the first one hits.
 [*][b]Lead-pursuit intercepts:[/b] fighters aim at where the target will be, not where it is. This makes cleaner intercepts of fleeing contacts and loses less energy. It accounts for the weapon's arc, filters the target's velocity, and manages pursuit speed. It also has a hot-pursuit mode.
-[*][b]Speed-aware launch gate:[/b] launch range is adjusted against fast targets, so missiles are not wasted at the edge of the envelope.
-[*][b]Correct vertical-arc check:[/b] radar missiles are released at their true range on any heading (see v0.9.1).
+[*][b]Crew-skill launch range:[/b] green crews fire early, near the missile's published maximum; seasoned crews at the game's computed range; veterans wait for a closer, surer shot.
 [*][b]Plain right-click attack orders:[/b] select a formation and right-click a hostile aircraft; the AI picks the longest-range suitable missile and starts the intercept.
 [*][b]Post-launch crank:[/b] after firing, the fighter cranks off the target while keeping its radar on it. Pressure shots are also used.
 [*][b]Radar discipline:[/b] radar-on timing based on kinematic range, lock time and a 60 s margin for aircraft without Fox-3 weapons.
@@ -69,13 +77,15 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 [h2]Automated missile defence[/h2]
 [list]
 [*]When an incoming missile is detected, the AI fighter notches, deploys chaff and does a Split-S / Immelman reversal inside the notch. It then holds the notch and weaves as the missile closes. At pitbull it re-notches, and it makes a last-ditch pull at the end. Wingmen defend the same way.
+[*][b]Fighting for its life:[/b] your steering orders wait until a missile is defeated ("Unable, defending"), then are followed.
+[*][b]Post-defence search:[/b] after defeating a missile, or when a wingman is shot at or shot down, AI aircraft weave toward the threat with radar on for a few minutes (DEF-SEARCH).
 [*][b]Offence vs defence:[/b] a defending aircraft stops its own attack and clears its targets. If the threat is far off and its own missile needs support for much less time, it finishes supporting that missile first. When it is safe it turns back and re-engages (Hold is respected).
 [*][b]Map status labels:[/b] friendly aircraft show what they are doing (DEF-NOTCH, DEF-REV, DEF-HOLD, DEF-PIT, DEF-KIN, DEF-LDM, NOTCH, EXT, CRANK, PRESS, PUR, ATT) and friendly missiles show GUIDED, COAST, NOTCHED (3 s after a notch), ACTIVE or IR.
 [/list]
 
 [h2]Crew skill[/h2]
 [list]
-[*]Crew skill from Green to Ultra scales reaction delay, notch accuracy, last-ditch timing and offensive launch range, so better crews fight better.
+[*]Crew skill from Green to Ultra scales reaction delay, notch accuracy, last-ditch timing and air-to-air launch range, so better crews fight better.
 [/list]
 
 [h2]Diagnostics[/h2]
@@ -87,10 +97,9 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 
 [h2]Installation[/h2]
 [olist]
-[*]Follow the install instructions for the core Anchor Chain mod: https://github.com/SeaPower-Modders/AnchorChain and subscribe to [b]Anchor Chain[/b] on the Workshop.
-[*]Also subscribe to [b]Anchor Chain (Beta Fix)[/b]: https://steamcommunity.com/sharedfiles/filedetails/?id=3837690165 and follow the one-time preloader step on its page. This is required on the Sea Power Public Beta (3D globe map). Let Steam finish downloading everything.
+[*]Follow the install instructions for the core Anchor Chain mod, including the [b]1.2.0 preloader[/b] (ACPreloader.zip from https://github.com/SeaPower-Modders/AnchorChain/releases), and subscribe to [b]Anchor Chain[/b] on the Workshop. Older preloaders and the Anchor Chain (Beta Fix) preloader do not start Anchor Chain 1.2.0 on Sea Power 0.9.0.
 [*]Launch Sea Power and open the [b]Mods[/b] menu from the main menu.
-[*]Make sure [b]Anchor Chain (Beta Fix)[/b] (folder AnchorChain_Beta) is [b]enabled[/b] and above Anchor Chain.
+[*]Make sure [b]Anchor Chain[/b] is [b]enabled[/b].
 [*]Find [b]Real Air Combat Tactics[/b] and make sure it is [b]enabled[/b] as well. Both must be enabled.
 [*][b]Fully exit the game[/b] (quit to desktop, not just to the main menu) and start it again. The mod only loads at game start.
 [*]To check that it loaded, open [i]Sea Power\BepInEx\SeaPowerFighterAI.log[/i]. It should start with a line saying the mod initialised. If the file does not exist, the mod is not enabled or Anchor Chain is not enabled.
@@ -98,7 +107,7 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 After you change the mod list in the Mods menu, always restart the game. If you previously used a local copy, remove it so the Workshop copy is not loaded twice.
 
 [h2]Status[/h2]
-[b]v0.9.3 Beta.[/b] This is tuned through test missions, and AI dogfights can still show rough behaviour. Known issues:
+[b]v0.9.4 Beta.[/b] This is tuned through test missions, and AI dogfights can still show rough behaviour. Known issues:
 [list]
 [*]Occasional speed loss in sustained pursuit.
 [*]Some priority conflicts between hot pursuit and other behaviours.
@@ -107,4 +116,4 @@ After you change the mod list in the Mods menu, always restart the game. If you 
 [/list]
 Please report bugs with your SeaPowerFighterAI.log attached.
 
-Compatible with Sea Power 0.8.7+. MIT licensed. Not affiliated with the developers of Sea Power.
+Compatible with Sea Power 0.9.0+ (Anchor Chain 1.2.0). MIT licensed. Not affiliated with the developers of Sea Power.

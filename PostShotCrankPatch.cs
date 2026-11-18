@@ -212,7 +212,9 @@ namespace SeaPowerFighterAI
                 bool armed = false;
                 foreach (Ammunition ammo in ac._ai.AmmunitionForTarget(c, Ammunition.Type.Missile))
                 {
-                    if (ammo?._ap != null && range < ammo._ap._launchRangesInUnity.y * NextTargetRangeFraction)
+                    // The game's own range for this missile against this target (its speed, aspect and evasion, as the AI's
+                    // weapon choice uses), not the catalogue maximum, which is the best-case head-on figure.
+                    if (ammo?._ap != null && ac.IsWithinMaxRangeForAmmo(ammo, c, range / NextTargetRangeFraction))
                     {
                         armed = true;
                         break;

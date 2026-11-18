@@ -196,7 +196,7 @@ namespace SeaPowerFighterAI
                 Active.Remove(ac);
                 if (e.OverrideTaken && ac.Motioncontroller != null)
                 {
-                    ac.Motioncontroller.commandPositionOverride = e.PrevOverride;
+                    ac.Motioncontroller.commandPositionOverride = Handback.PositionOverride(ac, e.PrevOverride);
                     ac.DesiredAltitude.Value = e.PrevAltitude;
                 }
 

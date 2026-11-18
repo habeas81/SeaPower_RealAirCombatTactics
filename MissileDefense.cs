@@ -76,6 +76,9 @@ namespace SeaPowerFighterAI
             public float Side;
 
             public bool Taken;
+            public Vector3 ThreatFrom;      // direction the missile came from when the defence began (the shooter's side)
+            public Vector3 ThreatPoint;     // where the missile was when the defence began (world position)
+            public bool PlayerOrderPending; // the player gave an order during the defence; followed when it ends
             public bool PrevPosOverride;
             public bool PrevAltOverride;
             public bool PrevDirectPoint;
@@ -177,7 +180,10 @@ namespace SeaPowerFighterAI
                 return false;
             }
 
-            if (ac.IsPlayerObject && (!Singleton<OptionsManager>.Instance.AircraftMissileEvasion || ac._playerCommandOverride))
+            // A player order does NOT stop (or prevent) a missile defence: a pilot fighting for his life does not obey a
+            // steering order. The order is kept by the game and followed once the threat is resolved (see Tick / End).
+            // The game option that turns aircraft missile evasion off is still respected.
+            if (ac.IsPlayerObject && !Singleton<OptionsManager>.Instance.AircraftMissileEvasion)
             {
                 return false;
             }
@@ -228,6 +234,13 @@ namespace SeaPowerFighterAI
                 {
                     End(ac, c, "no longer eligible");
                     return;
+                }
+
+                if (c != null && ac.IsPlayerObject && ac._playerCommandOverride && !c.PlayerOrderPending)
+                {
+                    c.PlayerOrderPending = true;
+                    ac.ShowOrderFeedback("Unable, defending");
+                    ModLog.Event($"DEFENSE {ac.getUIDAndName()}: cannot comply with player order, defending against {c.M?.getUIDAndName() ?? "missile"}; will follow it when the threat is resolved.");
                 }
 
                 Missile m = PickThreat(ac);
@@ -390,15 +403,21 @@ namespace SeaPowerFighterAI
                 NotchGuidance.Stop(ac, "missile defence takes over");
             }
 
+            // Stop a post-defence search first, so the state saved below is the aircraft's own, not the search's.
+            PostDefenseSearch.Stop(ac, "missile inbound");
+
+            Vector3 threatFrom = m.transform.position - ac.transform.position;
             var c = new Ctl
             {
+                ThreatFrom = threatFrom,
+                ThreatPoint = m.transform.position,
                 Taken = true,
                 PrevPosOverride = mc.commandPositionOverride,
                 PrevAltOverride = mc.commandAltitudeOverride,
                 PrevDirectPoint = mc._directPoint,
                 PrevAltitude = ac.DesiredAltitude.Value,
                 PrevSpeedKt = ac.SpeedCommand.Value != null ? ac.SpeedCommand.Value.SpeedInKnots : 0f,
-                PrevMach = ac.SpeedCommand.Value is ConstantMach ? ac.SpeedCommand.Value.SpeedInMach : 0f,
+                PrevMach = ac.SpeedCommand.Value?.Kind == SpeedKind.Mach ? ac.SpeedCommand.Value.SpeedInMach : 0f,
                 LastThreat = GameTime.missionElapsedTime,
                 Phase = Phase.Kinematic,
                 PhaseStart = GameTime.missionElapsedTime
@@ -414,6 +433,7 @@ namespace SeaPowerFighterAI
 
             Describe(ac, m, out string kind, out _, out _, out _, out float rangeNm, out float tti);
             ModLog.Event($"DEFENSE start {ac.getUIDAndName()} vs {m.getUIDAndName()} kind={kind} range={rangeNm:F1}nm tti={tti:F0}s launcher={(m._launchPlatform != null ? m._launchPlatform.getUIDAndName() : "none")} guidingRadarOwner={(m._guidingRadarSystem != null && m._guidingRadarSystem._baseObject != null ? m._guidingRadarSystem._baseObject.getUIDAndName() : "none")}");
+            PostDefenseSearch.SupportWingmen(ac, m.transform.position, m._launchPlatform, "wingman defending");
             return c;
         }
 
@@ -427,8 +447,8 @@ namespace SeaPowerFighterAI
 
             if (ac.Motioncontroller is FixedWingFlightPhysics mc)
             {
-                mc.commandPositionOverride = c.PrevPosOverride;
-                mc.commandAltitudeOverride = c.PrevAltOverride;
+                mc.commandPositionOverride = Handback.PositionOverride(ac, c.PrevPosOverride);
+                mc.commandAltitudeOverride = false; // only the game's dive logic sets this, every frame while diving; a stale restore would pin the altitude
                 mc._directPoint = c.PrevDirectPoint;
                 mc.controlOverride = false;
                 mc.controlInput = Vector3.zero;
@@ -449,7 +469,22 @@ namespace SeaPowerFighterAI
                 }
             }
 
-            ModLog.Event($"DEFENSE end {ac.getUIDAndName()}: {why}");
+            ModLog.Event($"DEFENSE end {ac.getUIDAndName()}: {why} (controls back to game state {Handback.StateName(ac)}){(c.PlayerOrderPending ? "; now following the player order given during the defence" : "")}");
+            if (c.PlayerOrderPending && !ac.IsDestroyed)
+            {
+                ac.ShowOrderFeedback("Threat defeated, complying");
+            }
+
+            if (ac.IsDestroyed)
+            {
+                PostDefenseSearch.SupportWingmen(ac, c.ThreatPoint, c.M != null ? c.M._launchPlatform : null, "wingman shot down");
+            }
+
+            // Survived with nothing of its own to turn back to: search for the shooter for a while (see PostDefenseSearch).
+            if (c.OffTargets.Count == 0 && !ac.IsDestroyed && why.StartsWith("threat resolved"))
+            {
+                PostDefenseSearch.Start(ac, c.ThreatFrom, c.M != null ? c.M._launchPlatform : null);
+            }
 
             // Safe again: remember what the aircraft was attacking so it can turn back in (see TryResume).
             if (c.OffTargets.Count > 0 && !ac.IsDestroyed && why != "error")
@@ -911,7 +946,7 @@ namespace SeaPowerFighterAI
             bool idle = c.Phase == Phase.Reversal && !c.Immelman;
             float want = idle ? mach[0] : mach[mach.Length - 1];
             ISpeedCommand cmd = ac.SpeedCommand.Value;
-            if (!(cmd is ConstantMach) || Mathf.Abs(cmd.SpeedInMach - want) > 0.001f)
+            if (cmd == null || cmd.Kind != SpeedKind.Mach || Mathf.Abs(cmd.SpeedInMach - want) > 0.001f)
             {
                 ac.SetSpeedCommand(new ConstantMach(want, ac));
             }
@@ -1056,15 +1091,23 @@ namespace SeaPowerFighterAI
 
                     LearnPullSign(ac, c, now);
                     // Heading flips as the nose passes the vertical, so heading alone ends the loop too early (mid-dive).
-                    // Finish only once the loop has gone through the vertical and the nose is back near the horizon.
+                    // Finish once the loop has gone through the vertical and the nose has come back ACROSS the horizon:
+                    // nose up past level for a Split-S, nose down past level for an Immelman. A crossing test cannot be
+                    // skipped by a fast pitch rate, where a narrow "near level" band (plus a heading test that a slightly
+                    // off-vertical loop misses) let the Split-S carry on into the climbing half of a loop.
                     if (Mathf.Abs(fwd.y) > 0.6f)
                     {
                         c.SawSteep = true;
                     }
 
-                    if (c.SawSteep && Mathf.Abs(fwd.y) < LevelOutSinPitch
-                        && Mathf.Abs(Mathf.DeltaAngle(Heading(ac), c.Heading0)) >= ReversalTurnDeg)
+                    bool backAcrossHorizon = c.Immelman ? fwd.y <= LevelOutSinPitch : fwd.y >= -LevelOutSinPitch;
+                    if (c.SawSteep && backAcrossHorizon)
                     {
+                        if (ModLog.Verbose)
+                        {
+                            ModLog.Event($"DEFENSE {ac.getUIDAndName()} {(c.Immelman ? "Immelman" : "Split-S")} levelled out: pitch {Mathf.Asin(Mathf.Clamp(fwd.y, -1f, 1f)) * Mathf.Rad2Deg:F0}deg, turned {Mathf.Abs(Mathf.DeltaAngle(Heading(ac), c.Heading0)):F0}deg");
+                        }
+
                         c.Step = c.Immelman ? RevStep.Upright : RevStep.Done;
                         c.StepStart = now;
                     }

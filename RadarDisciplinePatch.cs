@@ -188,7 +188,7 @@ namespace SeaPowerFighterAI
             }
 
             LastLog[id] = now;
-            ModLog.Event($"t={now:0} {message}");
+            ModLog.Event($"t={now:0} {unit.getUIDAndName()} {message}");
         }
 
         private static float Nm(float unity)

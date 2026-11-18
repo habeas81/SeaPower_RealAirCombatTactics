@@ -126,7 +126,8 @@ namespace SeaPowerFighterAI
                 }
                 else
                 {
-                    tag = friendly ? BuildFriendlyTag(obj) + StatusTag(obj) : BuildContactTag(__instance.Unit, obj);
+                    // Enemy intentions are not shown in normal play; with Diagnostics on they are, to test the AI behaviours.
+                    tag = friendly ? BuildFriendlyTag(obj) + StatusTag(obj) : BuildContactTag(__instance.Unit, obj) + (ModLog.Verbose ? StatusTag(obj) : string.Empty);
                     _cache[obj] = new CachedTag { Text = tag, Expires = now + CacheSec };
                 }
 
@@ -212,7 +213,7 @@ namespace SeaPowerFighterAI
                 return string.Empty;
             }
 
-            string label = MissileDefense.Label(ac);
+            string label = MissileDefense.Label(ac) ?? PostDefenseSearch.Label(ac);
             if (label == null && NotchGuidance.IsActive(ac))
             {
                 label = "NOTCH";
