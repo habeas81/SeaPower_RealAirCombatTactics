@@ -1,6 +1,6 @@
 [b]v0.9.4 Beta[/b]
 [list]
-[*][b]Updated for Sea Power 0.9.0.[/b] Requires Anchor Chain 1.2.0 with its 1.2.0 preloader; Anchor Chain (Beta Fix) is no longer needed.
+[*][b]Updated for Sea Power 0.9.0.[/b] Requires Anchor Chain 1.2.0 with its 1.2.0 preloader.
 [*][b]Fixed:[/b] aircraft could ignore your orders after a missile defence, notch or wingman extend, flying on at a stale point, or stay pinned at an old altitude.
 [*][b]Fixed:[/b] the defensive Split-S could carry on into the climbing half of a loop.
 [*][b]Fixed:[/b] speed handling during pursuit and defence on 0.9.0 (speed was re-commanded constantly and Mach not restored after a defence).

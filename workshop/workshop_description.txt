@@ -2,12 +2,12 @@
 
 Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discipline, wingman tactics, tanker-aware fuel management, and a Doppler-notch radar model with automated missile defence. It applies to AI and player-controlled fixed-wing aircraft on every side, with a few manual tools for the player.
 
-[b]REQUIRES: Sea Power 0.9.0+ and Anchor Chain 1.2.0[/b] (Workshop item 3380210757), installed with its [b]1.2.0 preloader[/b]. Anchor Chain (Beta Fix) is no longer needed. See "Installation" below.
+[b]REQUIRES: Sea Power 0.9.0+ and Anchor Chain 1.2.0[/b] (Workshop item 3380210757), installed with its [b]1.2.0 preloader[/b]. See "Installation" below.
 
 [h2]Patch notes[/h2]
 [b]v0.9.4 - 18 Nov 2026[/b]
 [list]
-[*][b]Updated for Sea Power 0.9.0.[/b] Requires Anchor Chain 1.2.0 with its 1.2.0 preloader; Anchor Chain (Beta Fix) is no longer needed.
+[*][b]Updated for Sea Power 0.9.0.[/b] Requires Anchor Chain 1.2.0 with its 1.2.0 preloader.
 [*][b]Fixed:[/b] aircraft could ignore your orders after a missile defence, notch or wingman extend, flying on at a stale point, or stay pinned at an old altitude.
 [*][b]Fixed:[/b] the defensive Split-S could carry on into the climbing half of a loop.
 [*][b]Fixed:[/b] speed handling during pursuit and defence on 0.9.0 (speed was re-commanded constantly and Mach not restored after a defence).
@@ -97,7 +97,7 @@ Overhauls fixed-wing fighter AI in Sea Power: smarter intercepts, missile discip
 
 [h2]Installation[/h2]
 [olist]
-[*]Follow the install instructions for the core Anchor Chain mod, including the [b]1.2.0 preloader[/b] (ACPreloader.zip from https://github.com/SeaPower-Modders/AnchorChain/releases), and subscribe to [b]Anchor Chain[/b] on the Workshop. Older preloaders and the Anchor Chain (Beta Fix) preloader do not start Anchor Chain 1.2.0 on Sea Power 0.9.0.
+[*]Follow the install instructions for the core Anchor Chain mod, including the [b]1.2.0 preloader[/b] (ACPreloader.zip from https://github.com/SeaPower-Modders/AnchorChain/releases), and subscribe to [b]Anchor Chain[/b] on the Workshop. Older preloaders do not start Anchor Chain 1.2.0 on Sea Power 0.9.0.
 [*]Launch Sea Power and open the [b]Mods[/b] menu from the main menu.
 [*]Make sure [b]Anchor Chain[/b] is [b]enabled[/b].
 [*]Find [b]Real Air Combat Tactics[/b] and make sure it is [b]enabled[/b] as well. Both must be enabled.

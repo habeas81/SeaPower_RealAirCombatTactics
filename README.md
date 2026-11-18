@@ -40,7 +40,7 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 ## Patch notes
 
 **v0.9.4**
-- Updated for Sea Power 0.9.0. Requires Anchor Chain 1.2.0 with its 1.2.0 preloader; Anchor Chain (Beta Fix) is no longer needed.
+- Updated for Sea Power 0.9.0. Requires Anchor Chain 1.2.0 with its 1.2.0 preloader.
 - Fixed: aircraft could ignore orders after a missile defence, notch or wingman extend (flying on at a stale point) and could be pinned at an old altitude; control is now handed back to whatever the game expects at that moment.
 - Fixed: Split-S could carry on into the climbing half of a loop (Split-S then Immelman).
 - Fixed: missile speed checks were always false on 0.9.0, so speed commands were re-issued every tick and Mach was not restored after a defence.
@@ -77,7 +77,7 @@ A Harmony 2 code mod (loaded by the Anchor Chain chainloader) for *Sea Power: Na
 ## Requirements
 
 - Sea Power 0.9.0+ (Steam).
-- [Anchor Chain](https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757) 1.2.0 (Workshop) with BepInEx 5.4.x. Follow its install instructions (https://github.com/SeaPower-Modders/AnchorChain) and use the 1.2.0 preloader (`ACPreloader.zip` from the [V1.2.0 release](https://github.com/SeaPower-Modders/AnchorChain/releases/tag/V1.2.0)); older preloaders and the Anchor Chain (Beta Fix) preloader do not start Anchor Chain 1.2.0 on Sea Power 0.9.0.
+- [Anchor Chain](https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757) 1.2.0 (Workshop) with BepInEx 5.4.x. Follow its install instructions (https://github.com/SeaPower-Modders/AnchorChain) and use the 1.2.0 preloader (`ACPreloader.zip` from the [V1.2.0 release](https://github.com/SeaPower-Modders/AnchorChain/releases/tag/V1.2.0)); older preloaders do not start Anchor Chain 1.2.0 on Sea Power 0.9.0.
 - .NET SDK 10.0 to build from source.
 
 ## Installing
